@@ -1,0 +1,5 @@
+{
+  "name": "KMU CyberGuard",
+  "description": "Eine intuitive Sicherheits-Plattform für kleine und mittelständische Unternehmen (KMU) zur Umsetzung von BSI Grundschutz und NIS2 Anforderungen.",
+  "requestFramePermissions": []
+}
