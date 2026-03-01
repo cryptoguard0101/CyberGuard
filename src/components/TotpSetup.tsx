@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { KeyRound, Check } from 'lucide-react';
 import * as OTPAuth from 'otpauth';
 
@@ -10,27 +10,22 @@ interface TotpSetupProps {
 
 const TotpSetup: React.FC<TotpSetupProps> = ({ onVerify, onBack, email = 'user@example.com' }) => {
   const [code, setCode] = useState('');
-  const [secret, setSecret] = useState<OTPAuth.Secret | null>(null);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  // Initialize secret once
+  const [secret] = useState(() => new OTPAuth.Secret({ size: 20 }));
 
-  useEffect(() => {
-    // Generate a new random secret
-    const newSecret = new OTPAuth.Secret({ size: 20 });
-    setSecret(newSecret);
-
+  const qrCodeUrl = useMemo(() => {
     const totp = new OTPAuth.TOTP({
       issuer: 'KMU CyberGuard',
       label: email,
       algorithm: 'SHA1',
       digits: 6,
       period: 30,
-      secret: newSecret,
+      secret: secret,
     });
 
     const uri = totp.toString();
-    // Use a QR code API that supports the otpauth URI
-    setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uri)}`);
-  }, [email]);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uri)}`;
+  }, [email, secret]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

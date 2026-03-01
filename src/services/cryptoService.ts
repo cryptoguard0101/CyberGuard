@@ -5,6 +5,7 @@ import CryptoJS from 'crypto-js';
 // 1. Generate a key from a password (PBKDF2) - used for authentication simulation
 export const generateKeyFromPassword = async (password: string, saltIn: Uint8Array): Promise<string> => {
   // Convert Uint8Array salt to WordArray for CryptoJS
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const salt = CryptoJS.lib.WordArray.create(saltIn as any);
   
   const key = CryptoJS.PBKDF2(password, salt, {
