@@ -8,7 +8,7 @@ interface AdminPageProps {
   users: User[];
   onToggleUserLock: (userId: string) => void;
   onChangeUserRole: (userId: string, newRole: UserRole) => void;
-  onCreateUser: (userData: Omit<User, 'id' | 'lastLogin' | 'isLocked' | 'mfaSecret' | 'passkeyCredential'>) => Promise<{success: boolean, error?: string}>;
+  onCreateUser: (userData: Omit<User, 'id' | 'lastLogin' | 'isLocked' | 'mfaSecret' | 'passkeyCredential'> & { password?: string }) => Promise<{success: boolean, error?: string}>;
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChangeUserRole, onCreateUser }) => {

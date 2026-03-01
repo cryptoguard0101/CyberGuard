@@ -1,47 +1,47 @@
+import CryptoJS from 'crypto-js';
+
 // This service handles WebAuthn/Passkeys interactions and password-based key derivation.
 
 // 1. Generate a key from a password (PBKDF2) - used for authentication simulation
-export const generateKeyFromPassword = async (password: string, saltIn: Uint8Array): Promise<CryptoKey> => {
-  const salt = new Uint8Array(saltIn); // Force correct type
-  const enc = new TextEncoder();
-  const keyMaterial = await window.crypto.subtle.importKey(
-    "raw",
-    enc.encode(password),
-    { name: "PBKDF2" },
-    false,
-    ["deriveBits", "deriveKey"]
-  );
+export const generateKeyFromPassword = async (password: string, saltIn: Uint8Array): Promise<string> => {
+  // Convert Uint8Array salt to WordArray for CryptoJS
+  const salt = CryptoJS.lib.WordArray.create(saltIn as any);
+  
+  const key = CryptoJS.PBKDF2(password, salt, {
+    keySize: 256 / 32,
+    iterations: 100000,
+    hasher: CryptoJS.algo.SHA256
+  });
 
-  return window.crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt: salt,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    // The key is derived but its usage for AES is no longer needed on the client for shared data
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["encrypt", "decrypt"] // Kept for potential future client-side field encryption
-  );
+  return key.toString(CryptoJS.enc.Base64);
 };
 
 // Helper function to generate a random buffer for WebAuthn
 const generateRandomBuffer = (): ArrayBuffer => {
     const arr = new Uint8Array(32);
-    return window.crypto.getRandomValues(arr).buffer;
+    // Use CryptoJS for random values if window.crypto is not available (HTTP context)
+    const randomWords = CryptoJS.lib.WordArray.random(32);
+    // Convert WordArray to Uint8Array
+    for (let i = 0; i < 32; i++) {
+        arr[i] = (randomWords.words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+    }
+    return arr.buffer;
 };
 
 // 2. Create Passkey using WebAuthn API
 export const createPasskey = async (email: string, displayName: string): Promise<{ success: boolean; error?: string }> => {
+  // Check for secure context
+  if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return { success: false, error: 'Passkeys erfordern eine sichere Verbindung (HTTPS).' };
+  }
+
   try {
     // In a real app, the challenge and user.id would come from the server
     const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
       challenge: generateRandomBuffer(),
       rp: {
         name: "KMU CyberGuard",
-        id: window.location.hostname.split('.').slice(-2).join('.'),
+        id: window.location.hostname, // Use hostname directly
       },
       user: {
         id: new TextEncoder().encode(email), // Use a stable ID derived from the email for the demo
@@ -72,11 +72,16 @@ export const createPasskey = async (email: string, displayName: string): Promise
 
 // 3. Verify Passkey using WebAuthn API
 export const verifyPasskey = async (): Promise<{ success: boolean; error?: string }> => {
+   // Check for secure context
+   if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+     return { success: false, error: 'Passkeys erfordern eine sichere Verbindung (HTTPS).' };
+   }
+
    try {
     // In a real app, the challenge and allowCredentials would come from the server
     const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
       challenge: generateRandomBuffer(),
-      rpId: window.location.hostname.split('.').slice(-2).join('.'),
+      rpId: window.location.hostname, // Use hostname directly
       userVerification: "required",
       timeout: 60000,
     };

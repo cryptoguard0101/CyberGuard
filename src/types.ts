@@ -30,7 +30,7 @@ export interface User {
   username?: string; // Optional display name
   email: string; // Mandatory for login
   role: UserRole;
-  encryptionKey: CryptoKey;
+  encryptionKey: string; // Changed from CryptoKey to string (Base64) for serialization
   avatar?: string;
   
   // New Security Fields

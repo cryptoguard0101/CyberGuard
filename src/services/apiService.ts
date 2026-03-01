@@ -38,7 +38,7 @@ export const getUsers = async (): Promise<User[]> => {
     return data.users;
 };
 
-export const login = async (username: string, key: CryptoKey): Promise<User | null> => {
+export const login = async (username: string, key: string): Promise<User | null> => {
     const data = await getSharedData();
     const user = data.users.find(u => u.username?.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
 
@@ -111,7 +111,7 @@ export const addUser = async (userData: { username: string, email: string, role:
         username: userData.username,
         email: userData.email,
         role: userData.role,
-        encryptionKey: dummyKey,
+        encryptionKey: dummyKey, // Now returns string
         validUntil: userData.validUntil,
     };
     data.users.push(newUser);

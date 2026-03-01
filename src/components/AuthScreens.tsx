@@ -9,7 +9,7 @@ import PasswordReset from './PasswordReset';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
 
 interface AuthScreensProps {
-  onLogin: (username: string, key: CryptoKey, user?: User) => void;
+  onLogin: (username: string, key: string, user?: User) => void;
   onLoginFail: (username: string) => void;
   onRegister: (userData: Partial<User>) => Promise<{success: boolean, error?: string, user?: User}>;
   users: User[]; // Pass existing users to check for locks/expiry
@@ -129,7 +129,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
           email,
           username: username || email.split('@')[0],
           role: 'ADMIN', // First user is always admin
-          encryptionKey: new Uint8Array() as unknown as CryptoKey, // Placeholder
+          encryptionKey: "", // Placeholder
           validUntil: null
         });
         if (!regResult.success) {
@@ -162,7 +162,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
             email,
             username: username || email.split('@')[0],
             role: 'ADMIN',
-            encryptionKey: new Uint8Array() as unknown as CryptoKey,
+            encryptionKey: "",
             validUntil: null
           });
           if (!regResult.success) {
@@ -221,7 +221,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
         email,
         username: username || email.split('@')[0],
         role: 'ADMIN',
-        encryptionKey: new Uint8Array() as unknown as CryptoKey,
+        encryptionKey: "",
         validUntil: null
       });
       if (!regResult.success) {

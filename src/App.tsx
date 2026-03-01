@@ -42,7 +42,7 @@ const App: React.FC = () => {
 
   
 
-  const handleLogin = async (username: string, key: CryptoKey, userObject?: User) => {
+  const handleLogin = async (username: string, key: string, userObject?: User) => {
     const loggedInUser = userObject || users.find(u => u.email === username);
     if (loggedInUser) {
       loggedInUser.lastLogin = new Date();

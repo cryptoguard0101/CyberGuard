@@ -33,7 +33,7 @@ const NewUserDialog: React.FC<NewUserDialogProps> = ({ isOpen, onClose, onCreate
       return;
     }
 
-    const result = await onCreateUser({ email, username, password, role, encryptionKey: {} as CryptoKey, validUntil: null });
+    const result = await onCreateUser({ email, username, password, role, encryptionKey: "", validUntil: null });
     if (result.success) {
       // Reset form and close
       setEmail('');
