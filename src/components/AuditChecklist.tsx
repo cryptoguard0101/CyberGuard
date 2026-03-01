@@ -28,7 +28,7 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
       setExplanation(text);
     } catch (error) {
       console.error("Explain Error:", error);
-      setExplanation("Fehler beim Laden der Erklärung.");
+      setExplanation(error instanceof Error ? error.message : "Fehler beim Laden der Erklärung.");
     } finally {
       setIsExplaining(false);
     }
