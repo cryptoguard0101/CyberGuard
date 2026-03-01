@@ -7,6 +7,7 @@ import TotpSetup from './TotpSetup';
 import EmailVerification from './EmailVerification';
 import PasswordReset from './PasswordReset';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
+import * as OTPAuth from 'otpauth';
 
 interface AuthScreensProps {
   onLogin: (username: string, key: string, user?: User) => void;
@@ -15,17 +16,17 @@ interface AuthScreensProps {
   users: User[]; // Pass existing users to check for locks/expiry
 }
 
-
-
 export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, onRegister, users }) => {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [step, setStep] = useState<'credentials' | 'email-verification' | 'mfa' | 'totp-setup' | 'password-reset'>('credentials');
+  const [step, setStep] = useState<'credentials' | 'email-verification' | 'mfa' | 'totp-setup' | 'totp-verify' | 'password-reset'>('credentials');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [loading, setLoading] = useState<string | false>(false);
   const [error, setError] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [totpLoginCode, setTotpLoginCode] = useState('');
 
   // Automatically switch to registration if no users exist
   useEffect(() => {
@@ -90,6 +91,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     setLoading('credentials');
     
     if (isRegistering) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setVerificationCode(code);
+      
       try {
         const response = await fetch('/api/send-email', {
           method: 'POST',
@@ -97,18 +101,19 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
           body: JSON.stringify({
             to: email,
             subject: 'KMU CyberGuard - Ihr Bestätigungscode',
-            text: `Ihr Bestätigungscode lautet: 123456`,
-            html: `<p>Ihr Bestätigungscode lautet: <strong>123456</strong></p>`
+            text: `Ihr Bestätigungscode lautet: ${code}`,
+            html: `<p>Ihr Bestätigungscode lautet: <strong>${code}</strong></p>`
           })
         });
 
         if (!response.ok) {
-          console.warn('Email sending failed, falling back to demo mode');
-          alert(`Demo-Modus (Email-Versand fehlgeschlagen): Ein Bestätigungscode (123456) wurde an ${email} gesendet.`);
+           throw new Error('Email sending failed');
         }
       } catch (error) {
         console.error('Error sending email:', error);
-        alert(`Demo-Modus (Server nicht erreichbar): Ein Bestätigungscode (123456) wurde an ${email} gesendet.`);
+        setError('Fehler beim Senden der E-Mail. Bitte überprüfen Sie die Server-Logs.');
+        setLoading(false);
+        return; 
       }
       setLoading(false);
       setStep('email-verification');
@@ -117,34 +122,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
         setLoading(false);
         setStep('mfa');
       }, 800);
-    }
-  };
-
-  const handleSkipMfa = async () => {
-    setLoading('skip');
-    try {
-      let newUser: User | undefined;
-      if (isRegistering) {
-        const regResult = await onRegister({
-          email,
-          username: username || email.split('@')[0],
-          role: 'ADMIN', // First user is always admin
-          encryptionKey: "", // Placeholder
-          validUntil: null
-        });
-        if (!regResult.success) {
-          setError(regResult.error || 'Registrierung fehlgeschlagen.');
-          setLoading(false);
-          return;
-        }
-        newUser = regResult.user;
-      }
-      const key = await generateKeyFromPassword(password, DEMO_SALT);
-      onLogin(email, key, newUser);
-    } catch {
-      setError('Ein Fehler ist aufgetreten.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -197,23 +174,11 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     if (isRegistering) {
       setStep('totp-setup');
     } else {
-      const code = prompt("Bitte geben Sie Ihren 6-stelligen Authenticator-Code ein (Demo: beliebig):");
-      if (code) {
-        setLoading('totp');
-        // In a real app, the server would verify the TOTP code
-        const key = await generateKeyFromPassword(password, DEMO_SALT);
-        onLogin(email, key);
-        setLoading(false);
-      } else {
-          if (!isRegistering) {
-              onLoginFail(email);
-          }
-          setError('Code-Eingabe abgebrochen.');
-      }
+      setStep('totp-verify');
     }
   };
 
-  const handleTotpVerification = async () => {
+  const handleTotpSetupComplete = async (code: string, secret: string) => {
     setLoading('totp');
     let newUser: User | undefined;
     if (isRegistering) {
@@ -222,7 +187,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
         username: username || email.split('@')[0],
         role: 'ADMIN',
         encryptionKey: "",
-        validUntil: null
+        validUntil: null,
+        mfaSecret: secret // Store the secret!
       });
       if (!regResult.success) {
         setError(regResult.error || 'Registrierung fehlgeschlagen.');
@@ -231,9 +197,38 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
       }
       newUser = regResult.user;
     }
-    // In a real app, the server would verify the TOTP code
     const key = await generateKeyFromPassword(password, DEMO_SALT);
     onLogin(email, key, newUser);
+    setLoading(false);
+  };
+
+  const handleTotpLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading('totp');
+    
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user || !user.mfaSecret) {
+        setError('Kein MFA-Secret für diesen Benutzer gefunden.');
+        setLoading(false);
+        return;
+    }
+
+    const totp = new OTPAuth.TOTP({
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: OTPAuth.Secret.fromBase32(user.mfaSecret)
+    });
+
+    const delta = totp.validate({ token: totpLoginCode, window: 1 });
+
+    if (delta !== null) {
+        const key = await generateKeyFromPassword(password, DEMO_SALT);
+        onLogin(email, key);
+    } else {
+        setError('Ungültiger Code.');
+        onLoginFail(email);
+    }
     setLoading(false);
   };
 
@@ -411,24 +406,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
                  <span>Authenticator Code</span>
               </button>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-slate-400">Demo-Optionen</span>
-                </div>
-              </div>
-
-              <button
-                onClick={handleSkipMfa}
-                disabled={!!loading}
-                className="w-full bg-slate-50 border border-dashed border-slate-300 text-slate-500 p-3 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {loading === 'skip' ? <RefreshCcw size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-                2FA Einrichtung überspringen (Demo)
-              </button>
-
               <button
                 onClick={() => { setStep('credentials'); setError(''); /* Keep email */ }}
                 className="w-full text-sm text-slate-400 hover:text-slate-600 mt-4"
@@ -442,8 +419,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
               email={email} 
               error={error}
               onVerify={(code) => {
-                // Demo: a real app would verify the code on the server
-                if (code === '123456') {
+                if (code === verificationCode) {
                   setError('');
                   setStep('mfa');
                 } else {
@@ -455,9 +431,57 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
           )}
           {step === 'totp-setup' && (
             <TotpSetup 
-              onVerify={handleTotpVerification} 
+              onVerify={handleTotpSetupComplete} 
               onBack={() => setStep('mfa')} 
+              email={email}
             />
+          )}
+          {step === 'totp-verify' && (
+             <div className="space-y-6">
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <KeyRound size={32} className="text-slate-600" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-slate-800">Authenticator Code</h2>
+                    <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
+                        Bitte geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.
+                    </p>
+                </div>
+
+                <form onSubmit={handleTotpLogin} className="space-y-4">
+                    <div>
+                        <input
+                            type="text"
+                            value={totpLoginCode}
+                            onChange={(e) => setTotpLoginCode(e.target.value.replace(/[^0-9]/g, ''))}
+                            maxLength={6}
+                            className="w-full px-4 py-3 rounded-lg border border-slate-300 text-center tracking-[0.5em] font-mono text-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            placeholder="_ _ _ _ _ _"
+                            autoFocus
+                        />
+                    </div>
+                     {error && (
+                        <div className="text-red-600 text-sm flex items-center gap-2 bg-red-50 p-3 rounded-lg border border-red-100">
+                            <ShieldAlert size={16} />
+                            {error}
+                        </div>
+                    )}
+                    <button
+                        type="submit"
+                        disabled={totpLoginCode.length !== 6 || !!loading}
+                        className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {loading === 'totp' ? <RefreshCcw className="animate-spin" /> : <ArrowRight />}
+                        Anmelden
+                    </button>
+                </form>
+                 <button
+                    onClick={() => { setStep('mfa'); setError(''); setTotpLoginCode(''); }}
+                    className="w-full text-sm text-slate-400 hover:text-slate-600 mt-4"
+                >
+                    Zurück
+                </button>
+             </div>
           )}
           {step === 'password-reset' && (
             <PasswordReset 

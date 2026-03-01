@@ -133,6 +133,12 @@ export const deleteUser = async (id: string) => {
     await saveSharedData(data);
 };
 
+export const registerUser = async (user: User) => {
+    const data = await getSharedData();
+    data.users.push(user);
+    await saveSharedData(data);
+};
+
 // --- TASK API ---
 
 export const getTasks = async (): Promise<Task[]> => {

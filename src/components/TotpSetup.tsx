@@ -1,21 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KeyRound, Check } from 'lucide-react';
+import * as OTPAuth from 'otpauth';
 
 interface TotpSetupProps {
-  onVerify: (code: string) => void;
+  onVerify: (code: string, secret: string) => void;
   onBack: () => void;
+  email?: string;
 }
 
-const TotpSetup: React.FC<TotpSetupProps> = ({ onVerify, onBack }) => {
+const TotpSetup: React.FC<TotpSetupProps> = ({ onVerify, onBack, email = 'user@example.com' }) => {
   const [code, setCode] = useState('');
+  const [secret, setSecret] = useState<OTPAuth.Secret | null>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
 
-  // In a real app, this would be a real QR code from the server
-  const fakeQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=otpauth://totp/KMU%20CyberGuard:demo@user.com?secret=JBSWY3DPEHPK3PXP&issuer=KMU%20CyberGuard`;
+  useEffect(() => {
+    // Generate a new random secret
+    const newSecret = new OTPAuth.Secret({ size: 20 });
+    setSecret(newSecret);
+
+    const totp = new OTPAuth.TOTP({
+      issuer: 'KMU CyberGuard',
+      label: email,
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      secret: newSecret,
+    });
+
+    const uri = totp.toString();
+    // Use a QR code API that supports the otpauth URI
+    setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uri)}`);
+  }, [email]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.length === 6) {
-      onVerify(code);
+    if (code.length === 6 && secret) {
+      const totp = new OTPAuth.TOTP({
+        issuer: 'KMU CyberGuard',
+        label: email,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret,
+      });
+
+      // Verify the code with a window of 1 (allows for slight clock drift)
+      const delta = totp.validate({ token: code, window: 1 });
+
+      if (delta !== null) {
+        onVerify(code, secret.base32);
+      } else {
+        alert('Der Code ist ungültig. Bitte versuchen Sie es erneut.');
+      }
     }
   };
 
@@ -31,8 +67,17 @@ const TotpSetup: React.FC<TotpSetupProps> = ({ onVerify, onBack }) => {
         </p>
       </div>
 
-      <div className="flex justify-center">
-        <img src={fakeQrCodeUrl} alt="QR Code" className="rounded-lg border-4 border-white shadow-md" />
+      <div className="flex justify-center flex-col items-center gap-4">
+        {qrCodeUrl ? (
+            <img src={qrCodeUrl} alt="QR Code" className="rounded-lg border-4 border-white shadow-md" />
+        ) : (
+            <div className="w-[200px] h-[200px] bg-slate-100 rounded-lg animate-pulse"></div>
+        )}
+        {secret && (
+            <div className="text-xs text-slate-400 font-mono bg-slate-50 p-2 rounded border border-slate-200">
+                Secret: {secret.base32}
+            </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

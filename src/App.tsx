@@ -15,7 +15,7 @@ import AdminPage from './components/AdminPage';
 import Impressum from './components/Impressum';
 import Datenschutz from './components/Datenschutz';
 import { Task, User, UserRole, Framework } from './types';
-// import * as api from './services/apiService';
+import * as api from './services/apiService';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -29,12 +29,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const bootstrap = async () => {
       setIsLoadingData(true);
-      const [loadedUsers, loadedTasks] = await Promise.all([
-        Promise.resolve([]),
-        Promise.resolve([])
-      ]);
-      setUsers(loadedUsers);
-      setTasks(loadedTasks);
+      try {
+        const [loadedUsers, loadedTasks] = await Promise.all([
+          api.getUsers(),
+          api.getTasks()
+        ]);
+        setUsers(loadedUsers);
+        setTasks(loadedTasks);
+      } catch (e) {
+        console.error("Failed to load data", e);
+      }
       setIsLoadingData(false);
     };
     bootstrap();
@@ -43,19 +47,21 @@ const App: React.FC = () => {
   
 
   const handleLogin = async (username: string, key: string, userObject?: User) => {
-    const loggedInUser = userObject || users.find(u => u.email === username);
+    const loggedInUser = userObject || users.find(u => u.email.toLowerCase() === username.toLowerCase());
     if (loggedInUser) {
-      loggedInUser.lastLogin = new Date();
-      setUser(loggedInUser);
+      // Update last login
+      const updatedUser = { ...loggedInUser, lastLogin: new Date() };
+      await api.updateUser(loggedInUser.id, { lastLogin: new Date() });
+      setUser(updatedUser);
     } else {
         alert("Login fehlgeschlagen. Benutzer nicht gefunden.");
     }
   };
 
-  const handleLoginFail = async () => {
-    // await api.recordFailedLogin(username);
+  const handleLoginFail = async (username: string) => {
+    await api.recordFailedLogin(username);
     // Refresh user list to show updated lock status/attempts
-    // setUsers(await api.getUsers());
+    setUsers(await api.getUsers());
   };
 
   const handleLogout = () => {
@@ -66,13 +72,13 @@ const App: React.FC = () => {
   const updateTask = async (updatedTask: Task) => {
     const newTasks = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
     setTasks(newTasks);
-    // await api.saveTasks(newTasks);
+    await api.saveTasks(newTasks);
   };
 
   const addTasks = async (newTasks: Task[]) => {
     const updatedTasks = [...tasks, ...newTasks];
     setTasks(updatedTasks);
-    // await api.saveTasks(updatedTasks);
+    await api.saveTasks(updatedTasks);
   };
   
   const handleRemoveModule = async (moduleId: string) => {
@@ -90,15 +96,15 @@ const App: React.FC = () => {
 
     const tasksToKeep = tasks.filter(t => t.framework !== frameworkToRemove);
     setTasks(tasksToKeep);
-    // await api.saveTasks(tasksToKeep);
+    await api.saveTasks(tasksToKeep);
   };
 
   const handleUpdateUser = async (updates: Partial<User>) => {
     if (!user) return;
     const updatedUser = { ...user, ...updates };
     setUser(updatedUser);
-    // await api.updateUser(user.id, updates);
-    // setUsers(await api.getUsers());
+    await api.updateUser(user.id, updates);
+    setUsers(await api.getUsers());
   };
 
   // User Management Handlers
@@ -119,14 +125,12 @@ const App: React.FC = () => {
   };
   */
 
-  const handleToggleUserLock = (userId: string) => {
-    const updatedUsers = users.map(u =>
-      u.id === userId ? { ...u, isLocked: !u.isLocked } : u
-    );
-    setUsers(updatedUsers);
-    const userToUpdate = updatedUsers.find(u => u.id === userId);
+  const handleToggleUserLock = async (userId: string) => {
+    const userToUpdate = users.find(u => u.id === userId);
     if (userToUpdate) {
-      // api.updateUser(userId, { isLocked: userToUpdate.isLocked });
+      const newLockStatus = !userToUpdate.isLocked;
+      await api.updateUser(userId, { isLocked: newLockStatus });
+      setUsers(await api.getUsers());
     }
   };
 
@@ -147,14 +151,34 @@ const App: React.FC = () => {
         ...userData,
         lastLogin: new Date(),
         isLocked: false,
-        // mfaSecret: '', // Should be generated server-side
-        // passkeyCredential: '', // Should be generated server-side
       } as User;
 
       // Simulate API call
-      // await api.addUser(newUser);
+      // We need to adapt api.addUser to accept a full User object or use a lower level save
+      // api.addUser currently takes specific fields and generates a key. 
+      // Since we already have the key and full object, we should probably add a method to apiService 
+      // or just push to the list if we want to keep using the "shared data" pattern.
+      // For now, let's assume we can just save the updated user list.
+      
+      // Actually, api.addUser is for "Admin adds user". 
+      // For self-registration, we should probably manually add it to the store.
+      
+      const currentUsers = await api.getUsers();
+      currentUsers.push(newUser);
+      // We need a way to save users. apiService doesn't expose saveUsers directly but has saveSharedData internal.
+      // Let's use a workaround or update apiService. 
+      // But wait, apiService has `saveSharedData` but it's not exported.
+      // However, `addUser` in apiService does: data.users.push(newUser); saveSharedData(data);
+      
+      // Let's modify apiService to allow saving a user directly or update the implementation here.
+      // Since I can't easily modify apiService signature without breaking other things, 
+      // I'll assume for now I can use a new method `registerUser` in apiService if I added it, 
+      // OR I can just use `addUser` if I match the signature, but `addUser` generates a dummy key.
+      
+      // Best approach: Add `registerUser` to apiService.ts
+      await api.registerUser(newUser);
 
-      setUsers(prevUsers => [...prevUsers, newUser]);
+      setUsers(await api.getUsers());
       return { success: true, user: newUser };
 
     } catch (error) {
@@ -163,12 +187,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleChangeUserRole = (userId: string, newRole: UserRole) => {
-    const updatedUsers = users.map(u =>
-      u.id === userId ? { ...u, role: newRole } : u
-    );
-    setUsers(updatedUsers);
-    // api.updateUser(userId, { role: newRole });
+  const handleChangeUserRole = async (userId: string, newRole: UserRole) => {
+    await api.updateUser(userId, { role: newRole });
+    setUsers(await api.getUsers());
   };
 
   if (isLoadingData && !user) {

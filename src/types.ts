@@ -39,6 +39,7 @@ export interface User {
   failedLoginAttempts?: number;
   lastFailedLogin?: Date;
   isLocked?: boolean;
+  mfaSecret?: string; // Base32 encoded secret for TOTP
   
   // Regulatory Relevance
   isNis2Relevant?: boolean;
