@@ -42,20 +42,24 @@ export const createPasskey = async (email: string, displayName: string): Promise
       challenge: generateRandomBuffer(),
       rp: {
         name: "KMU CyberGuard",
-        id: window.location.hostname, // Use hostname directly
+        // id: window.location.hostname, // Let browser default to current origin to avoid domain issues
       },
       user: {
         id: new TextEncoder().encode(email), // Use a stable ID derived from the email for the demo
         name: email,
         displayName: displayName || email,
       },
-      pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256
+      pubKeyCredParams: [
+        { type: "public-key", alg: -7 }, // ES256
+        { type: "public-key", alg: -257 }, // RS256
+      ],
       authenticatorSelection: {
-        authenticatorAttachment: "platform", // e.g., Windows Hello, Touch ID
-        userVerification: "required",
+        // authenticatorAttachment: "platform", // Allow cross-platform (e.g. YubiKey, Phone) too
+        userVerification: "preferred", // Changed from required to preferred to reduce friction
+        requireResidentKey: false,
       },
       timeout: 60000,
-      attestation: "direct",
+      attestation: "none", // Changed from direct to none for privacy/compatibility
     };
 
     const credential = await navigator.credentials.create({
