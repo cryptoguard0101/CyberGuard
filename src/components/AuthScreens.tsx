@@ -240,6 +240,11 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     setLoading(false);
   };
 
+  const loginUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const hasTotp = !!loginUser?.mfaSecret;
+  const showEmailMfa = isRegistering || !hasTotp;
+  const showTotpMfa = isRegistering || hasTotp;
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
@@ -377,6 +382,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
                 </p>
               </div>
 
+              {showEmailMfa && (
               <button
                 onClick={handleMfaEmail}
                 disabled={!!loading}
@@ -393,7 +399,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
                 </div>
                 {loading === 'email-otp' ? <RefreshCcw className="animate-spin" /> : <ArrowRight size={20} />}
               </button>
+              )}
 
+              {showEmailMfa && showTotpMfa && (
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-slate-200"></div>
@@ -402,7 +410,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
                   <span className="px-2 bg-white text-slate-500">oder</span>
                 </div>
               </div>
+              )}
 
+              {showTotpMfa && (
               <button
                 onClick={handleMfaTotp}
                 disabled={!!loading}
@@ -413,6 +423,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
                  </div>
                  <span>Authenticator Code</span>
               </button>
+              )}
 
               <button
                 onClick={() => { setStep('credentials'); setError(''); /* Keep email */ }}

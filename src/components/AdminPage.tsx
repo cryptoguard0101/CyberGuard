@@ -9,11 +9,15 @@ interface AdminPageProps {
   onToggleUserLock: (userId: string) => void;
   onChangeUserRole: (userId: string, newRole: UserRole) => void;
   onCreateUser: (userData: Omit<User, 'id' | 'lastLogin' | 'isLocked' | 'mfaSecret' | 'passkeyCredential'> & { password?: string }) => Promise<{success: boolean, error?: string}>;
+  onResetMfa: (userId: string) => void;
 }
 
-const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChangeUserRole, onCreateUser }) => {
+const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChangeUserRole, onCreateUser, onResetMfa }) => {
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
   const [userForLock, setUserForLock] = useState<User | null>(null);
+  
+  const [mfaResetDialogOpen, setMfaResetDialogOpen] = useState(false);
+  const [userForMfaReset, setUserForMfaReset] = useState<User | null>(null);
 
   const [roleChangeState, setRoleChangeState] = useState<{isOpen: boolean, user: User | null, newRole: UserRole | null}>({isOpen: false, user: null, newRole: null});
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +68,20 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
       />
 
       <ConfirmationDialog
+        isOpen={mfaResetDialogOpen}
+        onClose={() => setMfaResetDialogOpen(false)}
+        onConfirm={() => {
+          if (userForMfaReset) {
+            onResetMfa(userForMfaReset.id);
+          }
+        }}
+        title="2FA zurücksetzen?"
+        message={`Sind Sie sicher, dass Sie die Zwei-Faktor-Authentifizierung für ${userForMfaReset?.email} zurücksetzen möchten? Der Benutzer muss sie beim nächsten Login neu einrichten.`}
+        confirmButtonText="Zurücksetzen"
+        confirmButtonColor="bg-amber-600 hover:bg-amber-700"
+      />
+
+      <ConfirmationDialog
         isOpen={roleChangeState.isOpen}
         onClose={() => setRoleChangeState({isOpen: false, user: null, newRole: null})} // Cleanup on close
         onConfirm={() => {
@@ -105,6 +123,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Benutzer</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Rolle</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">2FA Status</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Letzter Login</th>
               <th scope="col" className="relative px-6 py-3">
@@ -143,6 +162,28 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
                     <option value="IT_PROVIDER">IT_PROVIDER</option>
                     <option value="VIEWER">VIEWER</option>
                   </select>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                    {user.mfaSecret ? (
+                        <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                Aktiviert (TOTP)
+                            </span>
+                            <button 
+                                onClick={() => {
+                                    setUserForMfaReset(user);
+                                    setMfaResetDialogOpen(true);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            E-Mail (Standard)
+                        </span>
+                    )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                     {user.isLocked ? (

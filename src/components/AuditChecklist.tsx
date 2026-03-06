@@ -19,13 +19,24 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
 
   const handleTaskClick = async (task: Task) => {
     setSelectedTask(task);
-    setExplanation(null);
     setVerificationResult(null);
     
+    if (task.explanation) {
+        setExplanation(task.explanation);
+        setIsExplaining(false);
+    } else {
+        await fetchExplanation(task);
+    }
+  };
+
+  const fetchExplanation = async (task: Task) => {
+    setExplanation(null);
     setIsExplaining(true);
     try {
       const text = await explainTask(task);
       setExplanation(text);
+      // Save the explanation to the task
+      onUpdateTask({ ...task, explanation: text });
     } catch (error) {
       console.error("Explain Error:", error);
       setExplanation(error instanceof Error ? error.message : "Fehler beim Laden der Erklärung.");
@@ -159,9 +170,20 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               {/* AI Explanation */}
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                    <Sparkles size={16} className="text-blue-500" /> KI-Anleitung
-                </h4>
+                <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <Sparkles size={16} className="text-blue-500" /> KI-Anleitung
+                    </h4>
+                    {explanation && !isExplaining && (
+                        <button 
+                            onClick={() => selectedTask && fetchExplanation(selectedTask)}
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded"
+                            title="Neu generieren"
+                        >
+                            <RefreshCcw size={12} /> Neu erstellen
+                        </button>
+                    )}
+                </div>
                 {isExplaining ? (
                   <div className="space-y-3 animate-pulse">
                     <div className="h-4 bg-slate-100 rounded w-3/4"></div>

@@ -192,6 +192,15 @@ const App: React.FC = () => {
     setUsers(await api.getUsers());
   };
 
+  const handleResetMfa = async (userId: string) => {
+    const userToUpdate = users.find(u => u.id === userId);
+    if (userToUpdate) {
+        // We use undefined to remove the property, assuming apiService handles it or we accept it's just set to undefined
+        await api.updateUser(userId, { mfaSecret: undefined });
+        setUsers(await api.getUsers());
+    }
+  };
+
   if (isLoadingData && !user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -243,7 +252,7 @@ const App: React.FC = () => {
           />
           <Route path="/help" element={<HelpSection />} />
           <Route path="/settings" element={<Settings isLocalMode={isLocalMode} onToggleLocalMode={() => setIsLocalMode(!isLocalMode)} />} />
-          <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} /> : <Navigate to="/" replace />} />
+          <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} onResetMfa={handleResetMfa} /> : <Navigate to="/" replace />} />
           <Route path="/impressum" element={<Impressum />} />
           <Route path="/datenschutz" element={<Datenschutz />} />
           <Route path="*" element={<Navigate to="/" replace />} />
