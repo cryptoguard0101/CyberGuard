@@ -76,7 +76,7 @@ export const checkGeminiConnection = async (apiKey: string): Promise<boolean> =>
         const ai = new GoogleGenAI({ apiKey });
         // Use a very simple, non-streaming call to test authentication
         await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: 'test'
         });
         return true;

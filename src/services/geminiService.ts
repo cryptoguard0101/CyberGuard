@@ -154,7 +154,7 @@ export const verifyDocumentWithAI = async (task: Task, base64Data: string, mimeT
       : base64Data;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: {
         parts: [
           { text: prompt },
@@ -216,7 +216,7 @@ export const explainTask = async (task: Task): Promise<string> => {
     if (!ai) throw new Error("Kein API-Key konfiguriert. Bitte setzen Sie einen in den Einstellungen.");
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: prompt,
     });
     
@@ -252,7 +252,7 @@ export const chatWithAssistant = async (history: { role: string; text: string }[
     }));
 
     const chat = ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       history: formattedHistory,
       config: { systemInstruction },
     });
@@ -301,7 +301,7 @@ export const continueOnboardingSession = async (history: { role: string; text: s
     }));
 
     const chat = ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       history: formattedHistory,
       config: { systemInstruction },
     });
@@ -343,7 +343,7 @@ export const generateTasksFromChat = async (history: { role: string; text: strin
     if (!ai) return [];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -429,7 +429,7 @@ export const generateChecklist = async (
     if (!ai) return [];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -524,7 +524,7 @@ export const importFrameworkModule = async (framework: string, moduleName: strin
     if (!ai) return [];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -598,7 +598,7 @@ export const searchFrameworkModules = async (query: string): Promise<Partial<Tas
         if (!ai) return [];
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-3.1-flash-lite-preview',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -667,7 +667,7 @@ export const generateSecurityRoadmap = async (tasks: Task[]): Promise<Roadmap> =
     if (!ai) return { phases: [], generatedAt: new Date() };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
