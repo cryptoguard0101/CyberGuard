@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, KeyRound, Fingerprint, RefreshCcw, ArrowRight, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Lock, KeyRound, Fingerprint, RefreshCcw, ArrowRight, ShieldAlert, Trash2 } from 'lucide-react';
 import { createPasskey, verifyPasskey, generateKeyFromPassword } from '../services/cryptoService';
 import { User } from '../types';
 import { calculateStrength } from '../utils/passwordUtils';
@@ -8,6 +8,7 @@ import EmailVerification from './EmailVerification';
 import PasswordReset from './PasswordReset';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
 import * as OTPAuth from 'otpauth';
+import { resetApp } from '../services/apiService';
 
 interface AuthScreensProps {
   onLogin: (username: string, key: string, user?: User) => void;
@@ -27,6 +28,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
   const [error, setError] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [totpLoginCode, setTotpLoginCode] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Automatically switch to registration if no users exist
   useEffect(() => {
@@ -52,6 +54,13 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     }
 
     return { valid: true };
+  };
+
+  const handleResetApp = async () => {
+    if (confirm("Sind Sie sicher? Alle lokalen Daten werden gelöscht und die App wird zurückgesetzt. Dies kann nicht rückgängig gemacht werden.")) {
+        await resetApp();
+        window.location.reload();
+    }
   };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -494,10 +503,18 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
         </div>
         
         <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
-          <p className="text-xs text-slate-400 flex items-center justify-center gap-1">
+          <p className="text-xs text-slate-400 flex items-center justify-center gap-1 mb-2">
             <Lock size={10} />
             Entspricht NIST 800-63B & NIS2 Anforderungen
           </p>
+          <button 
+            onClick={handleResetApp}
+            className="text-[10px] text-slate-300 hover:text-red-500 flex items-center justify-center gap-1 mx-auto transition-colors"
+            title="App zurücksetzen"
+          >
+            <Trash2 size={10} />
+            App zurücksetzen (Daten löschen)
+          </button>
         </div>
       </div>
     </div>
