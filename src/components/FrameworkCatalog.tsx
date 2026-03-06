@@ -3,6 +3,7 @@ import { Book, Plus, Search, RefreshCcw, ShieldCheck, Info, ChevronRight, Librar
 import { Task, Framework } from '../types';
 import { searchFrameworkModules, importFrameworkModule } from '../services/geminiService';
 import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS } from '../data/frameworkTasks';
+import { INITIAL_TASKS } from '../constants';
 
 interface FrameworkCatalogProps {
   onAddTasks: (tasks: Task[]) => void;
@@ -39,6 +40,16 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
   const handleImport = async (module: SearchResult | { title: string, framework: string }) => {
     if (!module.title || !module.framework) return;
     setImportingModule(module.title);
+    
+    // Special handling for Basic Security
+    if (module.framework === Framework.BASIC) {
+        // Filter INITIAL_TASKS for BASIC framework
+        const basicTasks = INITIAL_TASKS.filter(t => t.framework === Framework.BASIC);
+        onAddTasks(basicTasks);
+        setImportingModule(null);
+        return;
+    }
+
     try {
       const newTasks = await importFrameworkModule(module.framework, module.title);
       if (newTasks.length > 0) {
@@ -52,6 +63,14 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
   };
 
   const allFrameworks = [
+    { 
+      id: 'basic', 
+      name: 'Basis-Sicherheit', 
+      description: 'Grundlegende Sicherheitsmaßnahmen für jedes Unternehmen (Virenschutz, Updates, Backups).', 
+      framework: Framework.BASIC,
+      taskCount: INITIAL_TASKS.filter(t => t.framework === Framework.BASIC).length,
+      featured: true
+    },
     { 
       id: 'nis2', 
       name: 'NIS2 Richtlinie', 
@@ -193,6 +212,7 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
               <div key={fw.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all">
                 <div className="p-6 flex-1">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
+                    fw.id === 'basic' ? 'bg-slate-100 text-slate-700' :
                     fw.id === 'nis2' ? 'bg-blue-50 text-blue-600' : 
                     fw.id === 'iso27001' ? 'bg-green-50 text-green-600' : 
                     fw.id === 'gdpr' ? 'bg-purple-50 text-purple-600' :

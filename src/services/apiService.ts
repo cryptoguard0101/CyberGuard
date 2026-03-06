@@ -153,6 +153,7 @@ export const saveTasks = async (tasks: Task[]) => {
 };
 
 export const resetApp = async () => {
-    localStorage.removeItem(SHARED_DATA_KEY);
+    const emptyData = { users: [], tasks: [] };
+    localStorage.setItem(SHARED_DATA_KEY, JSON.stringify(emptyData));
     await delay(500); // Simulate processing
 };
