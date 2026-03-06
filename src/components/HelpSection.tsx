@@ -38,6 +38,24 @@ In der Regel sind Unternehmen ab **50 Mitarbeitern** oder **10 Mio. € Umsatz**
 - **Hardware-Tokens**: Physische Geräte wie YubiKeys.`
     },
     {
+      id: 'reset',
+      category: 'App-Nutzung',
+      title: 'App zurücksetzen & Frameworks',
+      excerpt: 'Wie Sie die App auf Werkseinstellungen zurücksetzen und Frameworks verwalten.',
+      content: `### App zurücksetzen
+Wenn Sie die App komplett neu starten möchten, finden Sie im Anmeldebildschirm unten die Option **"App zurücksetzen"**.
+Dies löscht alle lokalen Daten (Benutzer, Aufgaben, Fortschritt) und ermöglicht eine saubere Neuinstallation.
+
+### Frameworks verwalten
+In der **Bibliothek** (Katalog) können Sie verschiedene Sicherheitsstandards aktivieren:
+- **Basis-Sicherheit**: Grundlegende Schutzmaßnahmen (immer aktivierbar).
+- **NIS2**: Für betroffene Unternehmen (KRITIS, wichtige Sektoren).
+- **ISO 27001**: Internationaler Standard für Informationssicherheit.
+- **BSI IT-Grundschutz**: Standard des BSI.
+
+Sie können Module jederzeit hinzufügen oder entfernen (außer Basis-Sicherheit), um Ihren Audit-Umfang anzupassen.`
+    },
+    {
       id: 'onboarding',
       category: 'App-Nutzung',
       title: 'Kennenlernen (Onboarding)',

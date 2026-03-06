@@ -233,12 +233,18 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
                     {isActive ? 'Aktiviert' : 'Verfügbar'}
                   </span>
                   {isActive ? (
-                    <button 
-                      onClick={() => onRemoveModule(fw.id)}
-                      className="text-sm font-bold text-red-600 hover:text-red-700 transition-colors"
-                    >
-                      Entfernen
-                    </button>
+                    fw.id === 'basic' ? (
+                        <span className="text-sm font-medium text-slate-400 cursor-not-allowed" title="Basis-Sicherheit kann nicht entfernt werden">
+                            Standard
+                        </span>
+                    ) : (
+                        <button 
+                          onClick={() => onRemoveModule(fw.id)}
+                          className="text-sm font-bold text-red-600 hover:text-red-700 transition-colors"
+                        >
+                          Entfernen
+                        </button>
+                    )
                   ) : (
                     <button 
                       onClick={() => handleImport({ title: fw.name, framework: fw.name })}

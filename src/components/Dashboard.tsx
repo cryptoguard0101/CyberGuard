@@ -221,7 +221,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, user, isLocalMode }) => {
         </div>
 
         <div 
-            onClick={() => navigate('/audit')}
+            onClick={() => navigate('/catalog')}
             className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4 cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all"
         >
           <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg">
