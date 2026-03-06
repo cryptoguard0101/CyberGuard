@@ -71,8 +71,16 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
           body: JSON.stringify({
             to: targetEmail,
             subject: 'KMU CyberGuard - Ihr Bestätigungscode',
-            text: `Ihr Bestätigungscode lautet: ${code}`,
-            html: `<p>Ihr Bestätigungscode lautet: <strong>${code}</strong></p>`
+            text: `Ihr Bestätigungscode lautet: ${code}\n\nDieser Code ist 10 Minuten gültig.`,
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; text-align: center; background-color: #f8fafc;">
+                <div style="background-color: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 400px; margin: 0 auto;">
+                  <p style="color: #64748b; margin-bottom: 10px; font-size: 16px;">Ihr Bestätigungscode lautet:</p>
+                  <h2 style="font-size: 36px; letter-spacing: 6px; color: #2563eb; margin: 10px 0; font-weight: 800;">${code}</h2>
+                  <p style="color: #94a3b8; font-size: 12px; margin-top: 20px;">Dieser Code ist 10 Minuten gültig.</p>
+                </div>
+              </div>
+            `
           })
         });
 

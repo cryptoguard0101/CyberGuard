@@ -143,13 +143,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user, tasks, onLogout, onUpda
     { path: '/assistant', label: 'KI-Berater', icon: <MessageSquareText size={20} /> },
   ];
 
+  navItems.push({ path: '/settings', label: 'Einstellungen', icon: <SettingsIcon size={20} /> });
+
   if (user?.role === 'ADMIN') {
-    navItems.push({ path: '/admin', label: 'Admin', icon: <UserCog size={20} /> });
-    navItems.push({ path: '/users', label: 'Benutzer', icon: <Users size={20} /> });
+    navItems.push({ path: '/admin', label: 'Verwaltung', icon: <UserCog size={20} /> });
   }
 
-  navItems.push({ path: '/settings', label: 'Einstellungen', icon: <SettingsIcon size={20} /> });
-navItems.push({ path: '/help', label: 'Hilfe & Anleitung', icon: <HelpCircle size={20} /> });
+  navItems.push({ path: '/help', label: 'Hilfe & Anleitung', icon: <HelpCircle size={20} /> });
 
   const isActive = (path: string) => location.pathname === path;
   const unreadCount = notifications.filter(n => !n.read).length;

@@ -242,14 +242,6 @@ const App: React.FC = () => {
             element={<FrameworkCatalog onAddTasks={addTasks} tasks={tasks} onRemoveModule={handleRemoveModule} />} 
           />
           <Route path="/assistant" element={<AiAssistant />} />
-          <Route 
-            path="/users" 
-            element={
-                <UserManagement 
-                    users={users} 
-                />
-            } 
-          />
           <Route path="/help" element={<HelpSection />} />
           <Route path="/settings" element={<Settings isLocalMode={isLocalMode} onToggleLocalMode={() => setIsLocalMode(!isLocalMode)} />} />
           <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} onResetMfa={handleResetMfa} /> : <Navigate to="/" replace />} />
