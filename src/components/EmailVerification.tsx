@@ -32,10 +32,6 @@ const EmailVerification: React.FC<EmailVerificationProps> = ({ email, onVerify, 
         </p>
       </div>
 
-      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-        <p className="text-sm text-yellow-800">Demo-Modus: Bitte verwenden Sie den Code <strong className="font-mono">123456</strong></p>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="text-red-600 text-sm flex items-center gap-2 bg-red-50 p-3 rounded-lg border border-red-100">
@@ -58,10 +54,9 @@ const EmailVerification: React.FC<EmailVerificationProps> = ({ email, onVerify, 
         <div className="text-center">
             <button 
                 type="button"
-                onClick={() => setCode('123456')}
                 className="text-xs text-blue-600 hover:underline"
             >
-                Code erneut senden (Demo: Auto-Fill)
+                Code erneut senden
             </button>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, KeyRound, Fingerprint, RefreshCcw, ArrowRight, ShieldAlert, Trash2 } from 'lucide-react';
-import { createPasskey, verifyPasskey, generateKeyFromPassword } from '../services/cryptoService';
+import { ShieldCheck, Lock, KeyRound, Fingerprint, RefreshCcw, ArrowRight, ShieldAlert, Trash2, Mail } from 'lucide-react';
+import { generateKeyFromPassword } from '../services/cryptoService';
 import { User } from '../types';
 import { calculateStrength } from '../utils/passwordUtils';
 import TotpSetup from './TotpSetup';
@@ -19,7 +19,7 @@ interface AuthScreensProps {
 
 export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, onRegister, users }) => {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [step, setStep] = useState<'credentials' | 'email-verification' | 'mfa' | 'totp-setup' | 'totp-verify' | 'password-reset'>('credentials');
+  const [step, setStep] = useState<'credentials' | 'email-verification' | 'mfa' | 'totp-setup' | 'totp-verify' | 'password-reset' | 'email-otp-login'>('credentials');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +28,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
   const [error, setError] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [totpLoginCode, setTotpLoginCode] = useState('');
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Automatically switch to registration if no users exist
   useEffect(() => {
@@ -61,6 +60,31 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
         await resetApp();
         window.location.reload();
     }
+  };
+
+  const sendVerificationEmail = async (targetEmail: string): Promise<string | null> => {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      try {
+        const response = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: targetEmail,
+            subject: 'KMU CyberGuard - Ihr Bestätigungscode',
+            text: `Ihr Bestätigungscode lautet: ${code}`,
+            html: `<p>Ihr Bestätigungscode lautet: <strong>${code}</strong></p>`
+          })
+        });
+
+        if (!response.ok) {
+           throw new Error('Email sending failed');
+        }
+        return code;
+      } catch (error) {
+        console.error('Error sending email:', error);
+        setError('Fehler beim Senden der E-Mail. Bitte überprüfen Sie die Server-Logs.');
+        return null;
+      }
   };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -100,32 +124,14 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     setLoading('credentials');
     
     if (isRegistering) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setVerificationCode(code);
-      
-      try {
-        const response = await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: email,
-            subject: 'KMU CyberGuard - Ihr Bestätigungscode',
-            text: `Ihr Bestätigungscode lautet: ${code}`,
-            html: `<p>Ihr Bestätigungscode lautet: <strong>${code}</strong></p>`
-          })
-        });
-
-        if (!response.ok) {
-           throw new Error('Email sending failed');
-        }
-      } catch (error) {
-        console.error('Error sending email:', error);
-        setError('Fehler beim Senden der E-Mail. Bitte überprüfen Sie die Server-Logs.');
-        setLoading(false);
-        return; 
+      const code = await sendVerificationEmail(email);
+      if (code) {
+          setVerificationCode(code);
+          setLoading(false);
+          setStep('email-verification');
+      } else {
+          setLoading(false);
       }
-      setLoading(false);
-      setStep('email-verification');
     } else {
       setTimeout(() => {
         setLoading(false);
@@ -134,51 +140,24 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     }
   };
 
-  const handleMfaPasskey = async () => {
-    setLoading('passkey');
-    try {
-      const passkeyResult = isRegistering 
-        ? await createPasskey(email, username) 
-        : await verifyPasskey();
-
-      if (passkeyResult.success) {
-        let newUser: User | undefined;
-        if (isRegistering) {
-          const regResult = await onRegister({
-            email,
-            username: username || email.split('@')[0],
-            role: 'ADMIN',
-            encryptionKey: "",
-            validUntil: null
-          });
-          if (!regResult.success) {
-            setError(regResult.error || 'Registrierung fehlgeschlagen.');
-            return;
-          }
-          newUser = regResult.user;
-        }
-        const key = await generateKeyFromPassword(password, DEMO_SALT);
-        onLogin(email, key, newUser);
-      } else {
-        throw new Error(passkeyResult.error || "User cancelled or failed Passkey operation");
+  const handleMfaEmail = async () => {
+      setLoading('email-otp');
+      const code = await sendVerificationEmail(email);
+      if (code) {
+          setVerificationCode(code);
+          setStep('email-otp-login');
       }
-    } catch (e) {
-      const errorMessage = (e as Error).message || 'Unbekannter Fehler';
-      console.error("Passkey Error:", errorMessage);
-      
-      if (errorMessage.includes('not supported') || errorMessage.includes('registrable domain') || errorMessage.includes('NotAllowedError') || errorMessage.includes('SecurityError')) {
-        setError('Passkey wird in dieser Vorschau-Umgebung nicht unterstützt. Bitte verwenden Sie den Authenticator Code.');
-      } else {
-        setError(`Passkey-Fehler: ${errorMessage}`);
-      }
-
-      if (!isRegistering) {
-        onLoginFail(email);
-      }
-      setStep('mfa'); // Go back to MFA selection step
-    } finally {
       setLoading(false);
-    }
+  };
+
+  const handleEmailLoginVerify = async (code: string) => {
+      if (code === verificationCode) {
+          const key = await generateKeyFromPassword(password, DEMO_SALT);
+          onLogin(email, key);
+      } else {
+          setError('Falscher Bestätigungscode.');
+          onLoginFail(email);
+      }
   };
 
   const handleMfaTotp = async () => {
@@ -381,20 +360,20 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
               </div>
 
               <button
-                onClick={handleMfaPasskey}
+                onClick={handleMfaEmail}
                 disabled={!!loading}
                 className="w-full bg-blue-600 text-white p-4 rounded-xl font-semibold hover:bg-blue-700 transition-all flex items-center justify-between group shadow-lg shadow-blue-200 disabled:opacity-50"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-500 rounded-lg group-hover:bg-blue-400 transition-colors">
-                    <Fingerprint size={24} className="text-white" />
+                    <Mail size={24} className="text-white" />
                   </div>
                   <div className="text-left">
-                    <div className="text-sm font-bold">{isRegistering ? 'Passkey einrichten & Fortfahren' : 'Mit Passkey anmelden'}</div>
-                    <div className="text-xs text-blue-100">{loading === 'passkey' ? 'Warte auf Browser-Interaktion...' : 'Empfohlen & Sicher'}</div>
+                    <div className="text-sm font-bold">Code per E-Mail senden</div>
+                    <div className="text-xs text-blue-100">{loading === 'email-otp' ? 'Sende E-Mail...' : 'Einmalcode anfordern'}</div>
                   </div>
                 </div>
-                {loading === 'passkey' ? <RefreshCcw className="animate-spin" /> : <ArrowRight size={20} />}
+                {loading === 'email-otp' ? <RefreshCcw className="animate-spin" /> : <ArrowRight size={20} />}
               </button>
 
               <div className="relative">
@@ -424,6 +403,14 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
                 Zurück
               </button>
             </div>
+          )}
+          {step === 'email-otp-login' && (
+            <EmailVerification 
+              email={email} 
+              error={error}
+              onVerify={handleEmailLoginVerify} 
+              onBack={() => { setStep('mfa'); setError(''); }} 
+            />
           )}
           {step === 'email-verification' && (
             <EmailVerification 
