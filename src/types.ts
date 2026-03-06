@@ -114,3 +114,13 @@ export interface AiConfig {
   ollamaUrl: string;   // e.g. http://localhost:11434
   ollamaModel: string; // e.g. llama3, mistral
 }
+
+// Fix for Vite ImportMeta
+declare global {
+  interface ImportMeta {
+    env: {
+      VITE_API_KEY?: string;
+      [key: string]: string | undefined;
+    };
+  }
+}

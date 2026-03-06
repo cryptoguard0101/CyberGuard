@@ -155,7 +155,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
       }
     } catch (e) {
       const errorMessage = (e as Error).message || 'Unbekannter Fehler';
-      if (errorMessage.includes('not supported') || errorMessage.includes('registrable domain')) {
+      console.error("Passkey Error:", errorMessage);
+      
+      if (errorMessage.includes('not supported') || errorMessage.includes('registrable domain') || errorMessage.includes('NotAllowedError') || errorMessage.includes('SecurityError')) {
         setError('Passkey wird in dieser Vorschau-Umgebung nicht unterstützt. Bitte verwenden Sie den Authenticator Code.');
       } else {
         setError(`Passkey-Fehler: ${errorMessage}`);

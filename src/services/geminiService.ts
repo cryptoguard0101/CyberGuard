@@ -7,8 +7,21 @@ import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS } from "../data/frameworkTasks";
 // Helper to safely get AI instance
 const getGeminiInstance = () => {
     const config = getAiConfig();
-    // Prioritize user-configured key from settings, fall back to environment variable
-    const apiKey = config.geminiApiKey || process.env.API_KEY;
+    
+    // Try multiple sources for the API key
+    // 1. User configured key in local storage
+    // 2. Environment variable injected by Vite (process.env.API_KEY)
+    // 3. Vite specific env var (import.meta.env.VITE_API_KEY)
+    let apiKey = config.geminiApiKey;
+    
+    if (!apiKey) {
+        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+            apiKey = process.env.API_KEY;
+        } else if (import.meta.env && import.meta.env.VITE_API_KEY) {
+            apiKey = import.meta.env.VITE_API_KEY;
+        }
+    }
+
     if (!apiKey) {
         console.warn("API_KEY is missing. Gemini features will fail gracefully.");
         return null;
