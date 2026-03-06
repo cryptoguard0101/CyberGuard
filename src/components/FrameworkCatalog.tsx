@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Book, Plus, Search, RefreshCcw, ShieldCheck, Info, ChevronRight, Library, CheckCircle2 } from 'lucide-react';
-import { Task, Framework } from '../types';
-import { searchFrameworkModules, importFrameworkModule } from '../services/geminiService';
+import { Book, Plus, Search, RefreshCcw, ShieldCheck, Info, ChevronRight, Library, CheckCircle2, Upload, FileText, AlertCircle } from 'lucide-react';
+import { Task, Framework, TaskStatus } from '../types';
+import { searchFrameworkModules, importFrameworkModule, importCustomFramework } from '../services/geminiService';
 import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS, GDPR_TASKS, CIS_TASKS } from '../data/frameworkTasks';
 import { INITIAL_TASKS } from '../constants';
 
@@ -21,6 +21,50 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
   const [isSearching, setIsSearching] = useState(false);
   const [importingModule, setImportingModule] = useState<string | null>(null);
   const [showAllFrameworks, setShowAllFrameworks] = useState(false);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        try {
+            const base64 = event.target?.result as string;
+            const newTasks = await importCustomFramework(base64, file.type, file.name);
+            
+            if (newTasks.length > 0) {
+                // Add IDs to tasks
+                const tasksWithIds = newTasks.map((t, idx) => ({
+                    ...t,
+                    id: `custom-${Date.now()}-${idx}`,
+                    status: TaskStatus.TODO,
+                    framework: Framework.CUSTOM,
+                    source: 'UPLOAD' as const
+                }));
+                onAddTasks(tasksWithIds as Task[]);
+            } else {
+                setUploadError("Keine Aufgaben gefunden. Bitte prüfen Sie das Dokument.");
+            }
+        } catch (error) {
+            setUploadError(error instanceof Error ? error.message : "Upload fehlgeschlagen.");
+        } finally {
+            setIsUploading(false);
+            // Reset input
+            e.target.value = '';
+        }
+    };
+    reader.onerror = () => {
+        setUploadError("Fehler beim Lesen der Datei.");
+        setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +172,48 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
             <h1 className="text-3xl font-bold text-slate-900">Sicherheits-Bibliothek</h1>
           </div>
           <p className="text-slate-500 text-lg">Erweitern Sie Ihre Compliance-Checkliste um spezifische Frameworks und Module.</p>
+        </div>
+      </div>
+
+      {/* Custom Upload Section */}
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-2xl border border-indigo-100 shadow-sm">
+        <div className="flex items-start gap-4">
+            <div className="p-3 bg-white rounded-xl shadow-sm text-indigo-600">
+                <Upload size={24} />
+            </div>
+            <div className="flex-1">
+                <h3 className="text-lg font-bold text-indigo-900">Eigenes Framework importieren</h3>
+                <p className="text-indigo-700 text-sm mb-4">
+                    Laden Sie Ihre eigenen Sicherheitsrichtlinien, PDF-Checklisten oder Excel-Exporte hoch. 
+                    Unsere KI analysiert das Dokument und erstellt automatisch passende Aufgaben für Sie.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <label className={`
+                        flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium 
+                        hover:bg-indigo-700 transition-colors cursor-pointer shadow-sm
+                        ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}>
+                        {isUploading ? <RefreshCcw size={18} className="animate-spin" /> : <FileText size={18} />}
+                        {isUploading ? 'Analysiere Dokument...' : 'Dokument auswählen'}
+                        <input 
+                            type="file" 
+                            className="hidden" 
+                            accept=".pdf,.txt,.md,.csv"
+                            onChange={handleFileUpload}
+                            disabled={isUploading}
+                        />
+                    </label>
+                    <span className="text-xs text-indigo-400">Unterstützt: PDF, TXT, CSV</span>
+                </div>
+
+                {uploadError && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100 animate-in fade-in slide-in-from-top-1">
+                        <AlertCircle size={16} />
+                        {uploadError}
+                    </div>
+                )}
+            </div>
         </div>
       </div>
 

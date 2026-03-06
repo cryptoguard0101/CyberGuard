@@ -6,7 +6,8 @@ export enum Framework {
   NIS2 = 'NIS2',
   ISO27001 = 'ISO27001',
   GDPR = 'GDPR',
-  CIS = 'CIS'
+  CIS = 'CIS',
+  CUSTOM = 'CUSTOM'
 }
 
 export enum TaskStatus {
@@ -70,7 +71,7 @@ export interface Task {
   framework: Framework;
   impact: 'LOW' | 'MEDIUM' | 'HIGH';
   explanation?: string;
-  source?: 'DEFAULT' | 'GENERATOR' | 'ONBOARDING' | 'CATALOG';
+  source?: 'DEFAULT' | 'GENERATOR' | 'ONBOARDING' | 'CATALOG' | 'UPLOAD';
   documents?: TaskDocument[];
 }
 

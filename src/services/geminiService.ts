@@ -625,6 +625,82 @@ export const searchFrameworkModules = async (query: string): Promise<Partial<Tas
     }
 };
 
+export const importCustomFramework = async (base64Data: string, mimeType: string, fileName: string): Promise<Partial<Task>[]> => {
+  const config = getAiConfig();
+  const prompt = `
+    Analysiere das angehängte Dokument ("${fileName}").
+    Es handelt sich um ein Sicherheits-Framework, eine Richtlinie oder eine Checkliste.
+    Extrahiere daraus alle konkreten Handlungsanweisungen (Tasks) für ein IT-Sicherheitsaudit.
+    
+    Antworte ausschließlich als JSON Array.
+    Struktur pro Task:
+    {
+      "title": "Prägnanter Titel",
+      "description": "Detaillierte Beschreibung der Anforderung",
+      "category": "Passende Kategorie (z.B. Zugriffskontrolle, Netzwerk, Organisation, Physisch)",
+      "impact": "HIGH" (kritisch) | "MEDIUM" (wichtig) | "LOW" (optional)
+    }
+  `;
+
+  // Clean base64
+  const cleanBase64 = base64Data.includes('base64,') ? base64Data.split('base64,')[1] : base64Data;
+
+  if (config.provider === 'OLLAMA') {
+      // Ollama usually doesn't support PDF/Doc analysis well without OCR middleware, 
+      // but if it's text/image it might work with llava. 
+      // For now, we return a mock or error if it's not text.
+      // Assuming text for simplicity if Ollama is forced, or just fail.
+      return []; 
+  }
+
+  try {
+    const ai = getGeminiInstance();
+    if (!ai) throw new Error("Kein API Key vorhanden.");
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-lite-preview',
+      contents: {
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: cleanBase64
+            }
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              description: { type: Type.STRING },
+              category: { type: Type.STRING },
+              impact: { type: Type.STRING, enum: ["LOW", "MEDIUM", "HIGH"] }
+            },
+            required: ["title", "description", "category", "impact"]
+          }
+        }
+      }
+    });
+
+    const rawTasks = JSON.parse(response.text || "[]");
+    return rawTasks.map((t: Partial<Task>) => ({
+      ...t,
+      status: TaskStatus.TODO,
+      framework: Framework.CUSTOM, // We need to handle CUSTOM framework or map to something
+      source: 'UPLOAD'
+    }));
+
+  } catch (error) {
+    console.error("Custom Framework Import Error:", error);
+    throw new Error("Fehler bei der Analyse des Dokuments. Bitte stellen Sie sicher, dass es lesbar ist.");
+  }
+};
 export const generateSecurityRoadmap = async (tasks: Task[]): Promise<Roadmap> => {
   const config = getAiConfig();
   const openTasks = tasks
