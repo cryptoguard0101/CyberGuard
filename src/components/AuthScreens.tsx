@@ -152,8 +152,26 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
 
   const handleEmailLoginVerify = async (code: string) => {
       if (code === verificationCode) {
+          let newUser: User | undefined;
+          
+          if (isRegistering) {
+              const regResult = await onRegister({
+                email,
+                username: username || email.split('@')[0],
+                role: 'ADMIN',
+                encryptionKey: "",
+                validUntil: null
+              });
+              
+              if (!regResult.success) {
+                setError(regResult.error || 'Registrierung fehlgeschlagen.');
+                return;
+              }
+              newUser = regResult.user;
+          }
+          
           const key = await generateKeyFromPassword(password, DEMO_SALT);
-          onLogin(email, key);
+          onLogin(email, key, newUser);
       } else {
           setError('Falscher Bestätigungscode.');
           onLoginFail(email);
