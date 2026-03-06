@@ -1,5 +1,7 @@
-import React from 'react';
-import { X, Cpu, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Cpu, Zap, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { getAiConfig, saveAiConfig, checkGeminiConnection, checkOllamaConnection } from '../services/aiConfigService';
+import { AiConfig, AiProvider } from '../types';
 
 interface AiConfigWizardProps {
   isOpen: boolean;
@@ -7,6 +9,59 @@ interface AiConfigWizardProps {
 }
 
 const AiConfigWizard: React.FC<AiConfigWizardProps> = ({ isOpen, onClose }) => {
+  const [config, setConfig] = useState<AiConfig>(getAiConfig());
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [testMessage, setTestMessage] = useState('');
+
+  // Reset state when opening
+  useEffect(() => {
+    if (isOpen) {
+        setConfig(getAiConfig());
+        setTestResult(null);
+        setTestMessage('');
+    }
+  }, [isOpen]);
+
+  const handleSave = () => {
+    saveAiConfig(config);
+    onClose();
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    setTestMessage('');
+
+    try {
+        let success = false;
+        if (config.provider === 'CLOUD') {
+            if (!config.geminiApiKey) {
+                setTestResult('error');
+                setTestMessage('Bitte geben Sie einen API-Key ein.');
+                setIsTesting(false);
+                return;
+            }
+            success = await checkGeminiConnection(config.geminiApiKey);
+        } else {
+            success = await checkOllamaConnection(config.ollamaUrl);
+        }
+
+        if (success) {
+            setTestResult('success');
+            setTestMessage('Verbindung erfolgreich hergestellt!');
+        } else {
+            setTestResult('error');
+            setTestMessage('Verbindung fehlgeschlagen. Bitte prüfen Sie Ihre Eingaben.');
+        }
+    } catch (error) {
+        setTestResult('error');
+        setTestMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    } finally {
+        setIsTesting(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -35,30 +90,88 @@ const AiConfigWizard: React.FC<AiConfigWizardProps> = ({ isOpen, onClose }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">KI-Anbieter</label>
-              <select className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="gemini">Google Gemini (Empfohlen)</option>
-                <option value="ollama">Ollama (Lokal)</option>
+              <select 
+                value={config.provider}
+                onChange={(e) => setConfig({ ...config, provider: e.target.value as AiProvider })}
+                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="CLOUD">Google Gemini (Cloud)</option>
+                <option value="OLLAMA">Ollama (Lokal)</option>
               </select>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">API-Key</label>
-              <input 
-                type="password" 
-                placeholder="••••••••••••••••"
-                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+            {config.provider === 'CLOUD' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">API-Key (Google AI Studio)</label>
+                  <div className="relative">
+                      <input 
+                        type="password" 
+                        value={config.geminiApiKey || ''}
+                        onChange={(e) => setConfig({ ...config, geminiApiKey: e.target.value })}
+                        placeholder="AIzaSy..."
+                        className={`w-full px-4 py-2 rounded-lg border focus:ring-2 outline-none ${testResult === 'error' ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
+                      />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Einen Key erhalten Sie kostenlos im <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Google AI Studio</a>.
+                  </p>
+                </div>
+            ) : (
+                <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Ollama URL</label>
+                      <input 
+                        type="text" 
+                        value={config.ollamaUrl}
+                        onChange={(e) => setConfig({ ...config, ollamaUrl: e.target.value })}
+                        placeholder="http://127.0.0.1:11434"
+                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Modell Name</label>
+                      <input 
+                        type="text" 
+                        value={config.ollamaModel}
+                        onChange={(e) => setConfig({ ...config, ollamaModel: e.target.value })}
+                        placeholder="llama3"
+                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                </>
+            )}
+
+            {/* Test Result Feedback */}
+            {testResult && (
+                <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${testResult === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {testResult === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                    {testMessage}
+                </div>
+            )}
           </div>
         </div>
         
-        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">
-            Abbrechen
+        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+          <button 
+            onClick={handleTestConnection}
+            disabled={isTesting}
+            className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-2"
+          >
+            {isTesting ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+            Verbindung testen
           </button>
-          <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">
-            Speichern
-          </button>
+
+          <div className="flex gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">
+                Abbrechen
+              </button>
+              <button 
+                onClick={handleSave} 
+                className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+              >
+                Speichern
+              </button>
+          </div>
         </div>
       </div>
     </div>
