@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Book, Plus, Search, RefreshCcw, ShieldCheck, Info, ChevronRight, Library, CheckCircle2 } from 'lucide-react';
 import { Task, Framework } from '../types';
 import { searchFrameworkModules, importFrameworkModule } from '../services/geminiService';
-import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS } from '../data/frameworkTasks';
+import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS, GDPR_TASKS, CIS_TASKS } from '../data/frameworkTasks';
 import { INITIAL_TASKS } from '../constants';
 
 interface FrameworkCatalogProps {
@@ -100,7 +100,7 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
       name: 'DSGVO / GDPR', 
       description: 'Datenschutz-Grundverordnung für den Schutz personenbezogener Daten.', 
       framework: Framework.GDPR,
-      taskCount: 12,
+      taskCount: GDPR_TASKS.length,
       featured: false
     },
     { 
@@ -108,7 +108,7 @@ const FrameworkCatalog: React.FC<FrameworkCatalogProps> = ({ onAddTasks, onRemov
       name: 'CIS Controls', 
       description: 'Best Practices für die Abwehr der häufigsten Cyberangriffe.', 
       framework: Framework.CIS,
-      taskCount: 18,
+      taskCount: CIS_TASKS.length,
       featured: false
     },
   ];
