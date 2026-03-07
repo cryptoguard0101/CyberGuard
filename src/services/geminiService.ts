@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Task, Framework, TaskStatus, Roadmap } from "../types";
 import { getAiConfig } from "./aiConfigService";
-import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS } from "../data/frameworkTasks";
+import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS, GDPR_TASKS, CIS_TASKS } from "../data/frameworkTasks";
 
 // Helper to safely get AI instance
 const getGeminiInstance = () => {
@@ -476,6 +476,10 @@ export const importFrameworkModule = async (framework: string, moduleName: strin
     preDefinedTasks = ISO27001_TASKS;
   } else if (fwUpper.includes('BSI') || fwUpper.includes('GRUNDSCHUTZ')) {
     preDefinedTasks = BSI_TASKS;
+  } else if (fwUpper.includes('GDPR') || fwUpper.includes('DSGVO')) {
+    preDefinedTasks = GDPR_TASKS;
+  } else if (fwUpper.includes('CIS')) {
+    preDefinedTasks = CIS_TASKS;
   }
 
   // If we have pre-defined tasks and it's a "full" import or matches the framework name
