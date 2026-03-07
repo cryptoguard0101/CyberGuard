@@ -58,7 +58,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
             <UserCog size={28} />
         </div>
         <div>
-            <h1 className="text-2xl font-bold text-slate-900">Verwaltung</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Benutzerverwaltung</h1>
             <p className="text-slate-500">Verwalten Sie Benutzerkonten, Rollen und Sicherheits-Einstellungen.</p>
         </div>
         <div className="ml-auto">

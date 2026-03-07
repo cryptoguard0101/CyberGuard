@@ -112,7 +112,7 @@ const Settings: React.FC<SettingsProps> = ({ isLocalMode, onToggleLocalMode, use
         <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
             <SettingsIcon size={24} />
         </div>
-        <h1 className="text-2xl font-bold text-slate-900">Einstellungen</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Benutzereinstellungen</h1>
       </div>
 
       {/* Profile Settings */}
