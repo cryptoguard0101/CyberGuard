@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, UserRole } from '../types';
-import { UserCog, Lock, Unlock, Search, UserPlus } from 'lucide-react';
+import { UserCog, Lock, Unlock, Search, UserPlus, Edit } from 'lucide-react';
 import ConfirmationDialog from './ConfirmationDialog';
 import NewUserDialog from './NewUserDialog';
 
@@ -10,9 +10,10 @@ interface AdminPageProps {
   onChangeUserRole: (userId: string, newRole: UserRole) => void;
   onCreateUser: (userData: Omit<User, 'id' | 'lastLogin' | 'isLocked' | 'mfaSecret' | 'passkeyCredential'> & { password?: string }) => Promise<{success: boolean, error?: string}>;
   onResetMfa: (userId: string) => void;
+  onUpdateUser: (userId: string, updates: Partial<User>) => void;
 }
 
-const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChangeUserRole, onCreateUser, onResetMfa }) => {
+const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChangeUserRole, onCreateUser, onResetMfa, onUpdateUser }) => {
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
   const [userForLock, setUserForLock] = useState<User | null>(null);
   
@@ -22,6 +23,24 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
   const [roleChangeState, setRoleChangeState] = useState<{isOpen: boolean, user: User | null, newRole: UserRole | null}>({isOpen: false, user: null, newRole: null});
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false);
+
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+
+  const handleEditUser = (user: User) => {
+      setUserToEdit(user);
+      setEditUsername(user.username || '');
+      setEditUserDialogOpen(true);
+  };
+
+  const saveUserEdit = () => {
+      if (userToEdit) {
+          onUpdateUser(userToEdit.id, { username: editUsername });
+          setEditUserDialogOpen(false);
+          setUserToEdit(null);
+      }
+  };
 
   const filteredUsers = useMemo(() => {
     if (!searchQuery) {
@@ -58,7 +77,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
         onClose={() => setLockDialogOpen(false)}
         onConfirm={() => {
           if (userForLock) {
+            // Check if trying to lock the last active admin
+            if (!userForLock.isLocked && userForLock.role === 'ADMIN') {
+                const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userForLock.id);
+                if (activeAdmins.length === 0) {
+                    alert("Der letzte aktive Administrator kann nicht gesperrt werden, um den Zugriff auf das System zu gewährleisten.");
+                    setLockDialogOpen(false);
+                    return;
+                }
+            }
             onToggleUserLock(userForLock.id);
+            setLockDialogOpen(false);
           }
         }}
         title={`Benutzer ${userForLock?.isLocked ? 'entsperren' : 'sperren'}?`}
@@ -100,6 +129,45 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
         onClose={() => setIsNewUserDialogOpen(false)}
         onCreateUser={onCreateUser}
       />
+
+      {/* Edit User Dialog */}
+      {editUserDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-900">Benutzer bearbeiten</h3>
+                    <p className="text-sm text-slate-500">Ändern Sie die Details für {userToEdit?.email}</p>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Anzeigename</label>
+                        <input 
+                            type="text" 
+                            value={editUsername} 
+                            onChange={(e) => setEditUsername(e.target.value)}
+                            placeholder="Name eingeben"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            autoFocus
+                        />
+                    </div>
+                </div>
+                <div className="p-4 bg-slate-50 flex justify-end gap-3">
+                    <button 
+                        onClick={() => setEditUserDialogOpen(false)}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-medium transition-colors"
+                    >
+                        Abbrechen
+                    </button>
+                    <button 
+                        onClick={saveUserEdit}
+                        className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium transition-colors"
+                    >
+                        Speichern
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       <div className="mb-4 relative">
         <input 
@@ -200,15 +268,25 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
                   {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Nie'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button 
-                    onClick={() => {
-                    setUserForLock(user);
-                    setLockDialogOpen(true);
-                  }}
-                    className={`p-2 rounded-md ${user.isLocked ? 'bg-gray-200 hover:bg-gray-300' : 'bg-red-100 hover:bg-red-200'}`}
-                  >
-                    {user.isLocked ? <Unlock size={16} className="text-gray-600"/> : <Lock size={16} className="text-red-600"/>}
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button 
+                        onClick={() => handleEditUser(user)}
+                        className="p-2 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-600"
+                        title="Benutzer bearbeiten"
+                    >
+                        <Edit size={16} />
+                    </button>
+                    <button 
+                        onClick={() => {
+                        setUserForLock(user);
+                        setLockDialogOpen(true);
+                    }}
+                        className={`p-2 rounded-md ${user.isLocked ? 'bg-gray-200 hover:bg-gray-300' : 'bg-red-100 hover:bg-red-200'}`}
+                        title={user.isLocked ? "Entsperren" : "Sperren"}
+                    >
+                        {user.isLocked ? <Unlock size={16} className="text-gray-600"/> : <Lock size={16} className="text-red-600"/>}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

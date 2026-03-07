@@ -99,12 +99,23 @@ const App: React.FC = () => {
     await api.saveTasks(tasksToKeep);
   };
 
+  const handleUpdateAnyUser = async (userId: string, updates: Partial<User>) => {
+    await api.updateUser(userId, updates);
+    const updatedUsers = await api.getUsers();
+    setUsers(updatedUsers);
+    
+    // If the updated user is the currently logged-in user, update local state
+    if (user && user.id === userId) {
+        const updatedCurrentUser = updatedUsers.find(u => u.id === userId);
+        if (updatedCurrentUser) {
+            setUser(updatedCurrentUser);
+        }
+    }
+  };
+
   const handleUpdateUser = async (updates: Partial<User>) => {
     if (!user) return;
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    await api.updateUser(user.id, updates);
-    setUsers(await api.getUsers());
+    await handleUpdateAnyUser(user.id, updates);
   };
 
   // User Management Handlers
@@ -243,8 +254,8 @@ const App: React.FC = () => {
           />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/help" element={<HelpSection />} />
-          <Route path="/settings" element={<Settings isLocalMode={isLocalMode} onToggleLocalMode={() => setIsLocalMode(!isLocalMode)} />} />
-          <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} onResetMfa={handleResetMfa} /> : <Navigate to="/" replace />} />
+          <Route path="/settings" element={<Settings isLocalMode={isLocalMode} onToggleLocalMode={() => setIsLocalMode(!isLocalMode)} user={user} onUpdateUser={handleUpdateUser} />} />
+          <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} onResetMfa={handleResetMfa} onUpdateUser={handleUpdateAnyUser} /> : <Navigate to="/" replace />} />
           <Route path="/impressum" element={<Impressum />} />
           <Route path="/datenschutz" element={<Datenschutz />} />
           <Route path="*" element={<Navigate to="/" replace />} />
