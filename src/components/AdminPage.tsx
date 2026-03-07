@@ -114,17 +114,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
         isOpen={roleChangeState.isOpen}
         onClose={() => setRoleChangeState({isOpen: false, user: null, newRole: null})} // Cleanup on close
         onConfirm={() => {
-          if (roleChangeState.user && roleChangeState.newRole) {
+          const targetUser = roleChangeState.user;
+          const targetRole = roleChangeState.newRole;
+          if (targetUser && targetRole) {
             // Check if trying to demote the last active admin
-            if (roleChangeState.user.role === 'ADMIN' && roleChangeState.newRole !== 'ADMIN') {
-                const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== roleChangeState.user.id);
+            if (targetUser.role === 'ADMIN' && targetRole !== 'ADMIN') {
+                const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== targetUser.id);
                 if (activeAdmins.length === 0) {
                     alert("Die Rolle des letzten aktiven Administrators kann nicht geändert werden.");
                     setRoleChangeState({isOpen: false, user: null, newRole: null});
                     return;
                 }
             }
-            onChangeUserRole(roleChangeState.user.id, roleChangeState.newRole);
+            onChangeUserRole(targetUser.id, targetRole);
             setRoleChangeState({isOpen: false, user: null, newRole: null});
           }
         }}
