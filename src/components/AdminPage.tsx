@@ -81,7 +81,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
             if (!userForLock.isLocked && userForLock.role === 'ADMIN') {
                 const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userForLock.id);
                 if (activeAdmins.length === 0) {
-                    alert("Der letzte aktive Administrator kann nicht gesperrt werden, um den Zugriff auf das System zu gewährleisten.");
+                    alert("Der letzte aktive Administrator kann nicht gesperrt werden. Es muss mindestens ein weiterer aktiver Admin vorhanden sein.");
                     setLockDialogOpen(false);
                     return;
                 }
@@ -121,7 +121,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
             if (targetUser.role === 'ADMIN' && targetRole !== 'ADMIN') {
                 const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== targetUser.id);
                 if (activeAdmins.length === 0) {
-                    alert("Die Rolle des letzten aktiven Administrators kann nicht geändert werden.");
+                    alert("Die Rolle des letzten verbleibenden Admins kann nicht verändert werden. Es muss mindestens ein weiterer Admin vorhanden sein, damit man den Admin in seiner Rolle ändern kann.");
                     setRoleChangeState({isOpen: false, user: null, newRole: null});
                     return;
                 }

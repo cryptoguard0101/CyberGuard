@@ -29,6 +29,45 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
   const [verificationCode, setVerificationCode] = useState('');
   const [totpLoginCode, setTotpLoginCode] = useState('');
 
+  // Hold-to-reset state
+  const [resetHoldProgress, setResetHoldProgress] = useState(0);
+  const [isHoldingReset, setIsHoldingReset] = useState(false);
+  const resetIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const HOLD_DURATION = 10000; // 10 seconds
+  const UPDATE_INTERVAL = 100; // Update progress every 100ms
+
+  const handleResetStart = () => {
+    setIsHoldingReset(true);
+    setResetHoldProgress(0);
+    
+    const startTime = Date.now();
+    
+    resetIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min((elapsed / HOLD_DURATION) * 100, 100);
+      setResetHoldProgress(progress);
+      
+      if (progress >= 100) {
+        handleResetConfirm();
+      }
+    }, UPDATE_INTERVAL);
+  };
+
+  const handleResetEnd = () => {
+    setIsHoldingReset(false);
+    setResetHoldProgress(0);
+    if (resetIntervalRef.current) clearInterval(resetIntervalRef.current);
+  };
+
+  const handleResetConfirm = async () => {
+    handleResetEnd();
+    if (confirm("Sind Sie sicher? Alle lokalen Daten werden gelöscht und die App wird zurückgesetzt. Dies kann nicht rückgängig gemacht werden.")) {
+        await resetApp();
+        window.location.reload();
+    }
+  };
+
   // Automatically switch to registration if no users exist
   useEffect(() => {
     if (users.length === 0) {
@@ -53,13 +92,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
     }
 
     return { valid: true };
-  };
-
-  const handleResetApp = async () => {
-    if (confirm("Sind Sie sicher? Alle lokalen Daten werden gelöscht und die App wird zurückgesetzt. Dies kann nicht rückgängig gemacht werden.")) {
-        await resetApp();
-        window.location.reload();
-    }
   };
 
   const sendVerificationEmail = async (targetEmail: string): Promise<string | null> => {
@@ -526,18 +558,28 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ onLogin, onLoginFail, 
           )}
         </div>
         
-        <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
+        <div className="bg-slate-50 p-4 text-center border-t border-slate-100 relative overflow-hidden">
+          {isHoldingReset && (
+            <div 
+                className="absolute bottom-0 left-0 h-1 bg-red-500 transition-all duration-100 ease-linear"
+                style={{ width: `${resetHoldProgress}%` }}
+            />
+          )}
           <p className="text-xs text-slate-400 flex items-center justify-center gap-1 mb-2">
             <Lock size={10} />
             Entspricht NIST 800-63B & NIS2 Anforderungen
           </p>
           <button 
-            onClick={handleResetApp}
-            className="text-[10px] text-slate-300 hover:text-red-500 flex items-center justify-center gap-1 mx-auto transition-colors"
-            title="App zurücksetzen"
+            onMouseDown={handleResetStart}
+            onMouseUp={handleResetEnd}
+            onMouseLeave={handleResetEnd}
+            onTouchStart={handleResetStart}
+            onTouchEnd={handleResetEnd}
+            className={`text-[10px] flex items-center justify-center gap-1 mx-auto transition-all select-none ${isHoldingReset ? 'text-red-600 font-bold scale-110' : 'text-slate-300 hover:text-red-500'}`}
+            title="Gedrückt halten zum Zurücksetzen (10s)"
           >
             <Trash2 size={10} />
-            App zurücksetzen (Daten löschen)
+            {isHoldingReset ? `ZURÜCKSETZEN IN ${Math.ceil((100 - resetHoldProgress) / 10)}s...` : 'App zurücksetzen (10s gedrückt halten)'}
           </button>
         </div>
       </div>

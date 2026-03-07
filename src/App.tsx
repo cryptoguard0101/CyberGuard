@@ -41,6 +41,20 @@ const App: React.FC = () => {
     bootstrap();
   }, []);
 
+  // Warn user before reloading if logged in
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (user) {
+        e.preventDefault();
+        e.returnValue = 'Sie sind gerade angemeldet. Wenn Sie die Seite neu laden, werden Sie abgemeldet. Möchten Sie wirklich fortfahren?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [user]);
+
   
 
   const handleLogin = async (username: string, key: string, userObject?: User) => {
@@ -142,7 +156,7 @@ const App: React.FC = () => {
       if (isLocking && userToUpdate.role === 'ADMIN') {
         const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userId);
         if (activeAdmins.length === 0) {
-          alert("Der letzte aktive Administrator kann nicht gesperrt werden, um den Systemzugriff zu erhalten.");
+          alert("Der letzte aktive Administrator kann nicht gesperrt werden. Es muss mindestens ein weiterer aktiver Admin vorhanden sein.");
           return;
         }
       }
@@ -212,7 +226,7 @@ const App: React.FC = () => {
       if (userToUpdate.role === 'ADMIN' && newRole !== 'ADMIN') {
         const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userId);
         if (activeAdmins.length === 0) {
-          alert("Die Rolle des letzten aktiven Administrators kann nicht geändert werden.");
+          alert("Die Rolle des letzten verbleibenden Admins kann nicht verändert werden. Es muss mindestens ein weiterer Admin vorhanden sein, damit man den Admin in seiner Rolle ändern kann.");
           return;
         }
       }
