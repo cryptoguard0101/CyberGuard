@@ -54,7 +54,7 @@ const AiConfigWizard: React.FC<AiConfigWizardProps> = ({ isOpen, onClose }) => {
             setTestResult('error');
             setTestMessage('Verbindung fehlgeschlagen. Bitte prüfen Sie Ihre Eingaben.');
         }
-    } catch (error) {
+    } catch {
         setTestResult('error');
         setTestMessage('Ein unerwarteter Fehler ist aufgetreten.');
     } finally {

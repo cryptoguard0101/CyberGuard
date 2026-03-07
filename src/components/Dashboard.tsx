@@ -5,15 +5,12 @@ import { COLORS } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { CheckCircle2, AlertTriangle, Shield, TrendingUp, Handshake, ArrowRight, Zap, Target } from 'lucide-react';
 
-import LocalSetupInstructions from './LocalSetupInstructions';
-
 interface DashboardProps {
   tasks: Task[];
   user?: User | null; 
-  isLocalMode: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, user, isLocalMode }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, user }) => {
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
@@ -64,8 +61,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, user, isLocalMode }) => {
   ].filter(d => d.value > 0);
 
   return (
-    <>
-      {isLocalMode && <LocalSetupInstructions />}
     <div className="space-y-6">
       
       {/* Title - Always visible */}
@@ -285,7 +280,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, user, isLocalMode }) => {
         </div>
       </div>
     </div>
-    </>
   );
 };
 

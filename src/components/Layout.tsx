@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, ShieldCheck, MessageSquareText, Menu, X, ShieldAlert, LogOut, Handshake, Users, HelpCircle, Book, Cpu, Zap, Trophy, Bell, BellRing, Check, Trash2, Settings as SettingsIcon, UserCog, Power } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, ShieldCheck, MessageSquareText, Menu, X, ShieldAlert, LogOut, Handshake, HelpCircle, Book, Cpu, Zap, Trophy, Bell, BellRing, Check, Trash2, Settings as SettingsIcon, UserCog, Power, User as UserIcon, Save, Smartphone, Mail, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { User, Task, Framework } from '../types';
-// import { getAiConfig } from '../services/aiConfigService';
+import QRCode from 'qrcode';
+import * as OTPAuth from 'otpauth';
 import AiConfigWizard from './AiConfigWizard';
 
 interface LayoutProps {
@@ -27,6 +28,104 @@ const Layout: React.FC<LayoutProps> = ({ children, user, tasks, onLogout, onUpda
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAiWizardOpen, setIsAiWizardOpen] = useState(false);
   const [showInactivityToast, setShowInactivityToast] = useState<string | null>(null);
+  
+  // Profile Modal State
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [username, setUsername] = useState(user?.username || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
+
+  // MFA State
+  const [mfaSetupOpen, setMfaSetupOpen] = useState(false);
+  const [mfaSecret, setMfaSecret] = useState('');
+  const [mfaQrCode, setMfaQrCode] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setUsername(user.username || '');
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    if (!onUpdateUser || !user) return;
+    setIsSaving(true);
+    setProfileSuccess(null);
+    try {
+      await onUpdateUser({ username });
+      setProfileSuccess("Profil erfolgreich aktualisiert.");
+      setTimeout(() => setProfileSuccess(null), 3000);
+    } catch (error) {
+      console.error("Failed to update profile", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const startMfaSetup = async () => {
+    if (!user) return;
+    const secret = new OTPAuth.Secret({ size: 20 });
+    const secretBase32 = secret.base32;
+    setMfaSecret(secretBase32);
+
+    const totp = new OTPAuth.TOTP({
+        issuer: 'KMU CyberGuard',
+        label: user.email,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret
+    });
+
+    const uri = totp.toString();
+    try {
+        const qr = await QRCode.toDataURL(uri);
+        setMfaQrCode(qr);
+        setMfaSetupOpen(true);
+        setMfaError(null);
+    } catch {
+        setMfaError("Fehler beim Erstellen des QR-Codes.");
+    }
+  };
+
+  const verifyAndEnableMfa = async () => {
+    if (!onUpdateUser || !mfaCode || mfaCode.length !== 6) {
+        setMfaError("Bitte geben Sie einen 6-stelligen Code ein.");
+        return;
+    }
+
+    const totp = new OTPAuth.TOTP({
+        secret: OTPAuth.Secret.fromBase32(mfaSecret),
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30
+    });
+    
+    const delta = totp.validate({ token: mfaCode, window: 1 });
+    if (delta !== null) {
+        try {
+            await onUpdateUser({ mfaSecret: mfaSecret });
+            setMfaSetupOpen(false);
+            setMfaCode('');
+            setProfileSuccess("Authenticator App erfolgreich eingerichtet.");
+            setTimeout(() => setProfileSuccess(null), 3000);
+        } catch {
+            setMfaError("Fehler beim Speichern.");
+        }
+    } else {
+        setMfaError("Ungültiger Code. Bitte versuchen Sie es erneut.");
+    }
+  };
+
+  const disableMfa = async () => {
+    if (!onUpdateUser) return;
+    if (confirm("Möchten Sie wirklich auf E-Mail-Codes zurückwechseln? Dies ist weniger sicher.")) {
+        await onUpdateUser({ mfaSecret: undefined });
+        setProfileSuccess("Auf E-Mail-Authentifizierung zurückgesetzt.");
+        setTimeout(() => setProfileSuccess(null), 3000);
+    }
+  };
   
   // Notification State
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -143,8 +242,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, tasks, onLogout, onUpda
     { path: '/assistant', label: 'KI-Berater', icon: <MessageSquareText size={20} /> },
   ];
 
-  navItems.push({ path: '/settings', label: 'Einstellungen', icon: <SettingsIcon size={20} /> });
-
   if (user?.role === 'ADMIN') {
     navItems.push({ path: '/admin', label: 'Verwaltung', icon: <UserCog size={20} /> });
   }
@@ -207,11 +304,23 @@ const Layout: React.FC<LayoutProps> = ({ children, user, tasks, onLogout, onUpda
         {user && (
            <div className="px-4 py-6 bg-slate-800/50 border-b border-slate-700">
              <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg">
+               <button 
+                onClick={() => setIsProfileOpen(true)}
+                className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg hover:ring-2 hover:ring-blue-400 transition-all"
+               >
                  {user.username ? user.username.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
-               </div>
-               <div className="overflow-hidden">
-                 <p className="text-sm font-medium text-white truncate">{user.username || user.email}</p>
+               </button>
+               <div className="overflow-hidden flex-1">
+                 <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-white truncate">{user.username || user.email}</p>
+                    <button 
+                        onClick={() => setIsProfileOpen(true)}
+                        className="text-slate-400 hover:text-white transition-colors"
+                        title="Profil bearbeiten"
+                    >
+                        <SettingsIcon size={14} />
+                    </button>
+                 </div>
                  <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-[10px] uppercase tracking-wide bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">
                         {user.role}
@@ -397,6 +506,132 @@ const Layout: React.FC<LayoutProps> = ({ children, user, tasks, onLogout, onUpda
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           {children}
         </main>
+
+        {/* Profile Modal */}
+        {isProfileOpen && user && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                                <UserIcon size={20} />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-900">Mein Profil</h2>
+                        </div>
+                        <button onClick={() => setIsProfileOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
+                        {/* Profile Section */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Persönliche Informationen</h3>
+                            <div className="grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">E-Mail Adresse</label>
+                                    <input type="email" value={user.email} disabled className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Anzeigename</label>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={username} 
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            placeholder="Ihr Name"
+                                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        <button 
+                                            onClick={handleSaveProfile}
+                                            disabled={isSaving || username === user.username}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                                        >
+                                            {isSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save size={18} />}
+                                            Speichern
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {profileSuccess && (
+                                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-3 rounded-lg border border-green-100 animate-in slide-in-from-top-1">
+                                    <CheckCircle2 size={16} />
+                                    {profileSuccess}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Security Section */}
+                        <div className="space-y-4 pt-6 border-t border-slate-100">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Sicherheit</h3>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-start gap-3">
+                                        <div className={`p-2 rounded-lg ${user.mfaSecret ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                            {user.mfaSecret ? <Smartphone size={24} /> : <Mail size={24} />}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800">
+                                                {user.mfaSecret ? 'Authenticator App (Aktiv)' : 'E-Mail Code (Aktiv)'}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                {user.mfaSecret 
+                                                    ? 'Ihr Konto ist durch eine Authenticator App geschützt.' 
+                                                    : 'Ihr Konto ist durch Einmalcodes per E-Mail geschützt.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={user.mfaSecret ? disableMfa : startMfaSetup}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${user.mfaSecret ? 'border border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                                    >
+                                        {user.mfaSecret ? 'Zu E-Mail wechseln' : 'Authenticator einrichten'}
+                                    </button>
+                                </div>
+
+                                {mfaSetupOpen && !user.mfaSecret && (
+                                    <div className="mt-6 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-2">
+                                        <div className="grid md:grid-cols-2 gap-8">
+                                            <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-slate-200">
+                                                {mfaQrCode ? <img src={mfaQrCode} alt="QR Code" className="w-40 h-40" /> : <div className="w-40 h-40 bg-slate-100 animate-pulse rounded-lg"></div>}
+                                                <div className="mt-4 w-full">
+                                                    <p className="text-[10px] text-slate-400 text-center mb-1 uppercase font-bold">Manueller Code</p>
+                                                    <div className="bg-slate-100 p-2 rounded text-center font-mono text-xs select-all">{mfaSecret}</div>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Bestätigungscode</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={mfaCode}
+                                                        onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                                                        placeholder="000000"
+                                                        className="w-full px-4 py-3 text-lg tracking-widest text-center border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        maxLength={6}
+                                                    />
+                                                </div>
+                                                {mfaError && <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2"><AlertTriangle size={14} />{mfaError}</div>}
+                                                <div className="flex gap-3">
+                                                    <button onClick={() => setMfaSetupOpen(false)} className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium">Abbrechen</button>
+                                                    <button onClick={verifyAndEnableMfa} disabled={mfaCode.length !== 6} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">Aktivieren</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+                        <button onClick={() => setIsProfileOpen(false)} className="px-6 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-bold transition-all shadow-sm">
+                            Schließen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         <footer className="text-center text-xs text-slate-400 p-4 border-t border-slate-100 bg-white">
           <div className="flex justify-center gap-4 mb-2">

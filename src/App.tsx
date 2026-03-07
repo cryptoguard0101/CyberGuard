@@ -6,11 +6,9 @@ import AuditChecklist from './components/AuditChecklist';
 import FrameworkCatalog from './components/FrameworkCatalog';
 import AiAssistant from './components/AiAssistant';
 import OnboardingHub from './components/OnboardingChat';
-import UserManagement from './components/UserManagement';
 import HelpSection from './components/HelpSection';
 import { AuthScreens } from './components/AuthScreens';
 import DbConfigWizard from './components/DbConfigWizard';
-import Settings from './components/Settings';
 import AdminPage from './components/AdminPage';
 import Impressum from './components/Impressum';
 import Datenschutz from './components/Datenschutz';
@@ -23,7 +21,6 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isDbWizardOpen, setIsDbWizardOpen] = useState(false);
-  const [isLocalMode, setIsLocalMode] = useState(false);
 
   // Initial data loading for the entire application
   useEffect(() => {
@@ -139,8 +136,18 @@ const App: React.FC = () => {
   const handleToggleUserLock = async (userId: string) => {
     const userToUpdate = users.find(u => u.id === userId);
     if (userToUpdate) {
-      const newLockStatus = !userToUpdate.isLocked;
-      await api.updateUser(userId, { isLocked: newLockStatus });
+      const isLocking = !userToUpdate.isLocked;
+      
+      // Prevent locking the last active admin
+      if (isLocking && userToUpdate.role === 'ADMIN') {
+        const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userId);
+        if (activeAdmins.length === 0) {
+          alert("Der letzte aktive Administrator kann nicht gesperrt werden, um den Systemzugriff zu erhalten.");
+          return;
+        }
+      }
+
+      await api.updateUser(userId, { isLocked: isLocking });
       setUsers(await api.getUsers());
     }
   };
@@ -199,8 +206,20 @@ const App: React.FC = () => {
   };
 
   const handleChangeUserRole = async (userId: string, newRole: UserRole) => {
-    await api.updateUser(userId, { role: newRole });
-    setUsers(await api.getUsers());
+    const userToUpdate = users.find(u => u.id === userId);
+    if (userToUpdate) {
+      // Prevent demoting the last active admin
+      if (userToUpdate.role === 'ADMIN' && newRole !== 'ADMIN') {
+        const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userId);
+        if (activeAdmins.length === 0) {
+          alert("Die Rolle des letzten aktiven Administrators kann nicht geändert werden.");
+          return;
+        }
+      }
+      
+      await api.updateUser(userId, { role: newRole });
+      setUsers(await api.getUsers());
+    }
   };
 
   const handleResetMfa = async (userId: string) => {
@@ -239,7 +258,7 @@ const App: React.FC = () => {
       <DbConfigWizard isOpen={isDbWizardOpen} onClose={() => setIsDbWizardOpen(false)} />
       <Layout user={user} tasks={tasks} onLogout={handleLogout} onUpdateUser={handleUpdateUser}>
         <Routes>
-          <Route path="/" element={<Dashboard tasks={tasks} user={user} isLocalMode={isLocalMode} />} />
+          <Route path="/" element={<Dashboard tasks={tasks} user={user} />} />
           <Route 
             path="/onboarding"
             element={<OnboardingHub user={user} onAddTasks={addTasks} tasks={tasks} onUpdateUser={handleUpdateUser} />}
@@ -254,7 +273,6 @@ const App: React.FC = () => {
           />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/help" element={<HelpSection />} />
-          <Route path="/settings" element={<Settings isLocalMode={isLocalMode} onToggleLocalMode={() => setIsLocalMode(!isLocalMode)} user={user} onUpdateUser={handleUpdateUser} />} />
           <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} onResetMfa={handleResetMfa} onUpdateUser={handleUpdateAnyUser} /> : <Navigate to="/" replace />} />
           <Route path="/impressum" element={<Impressum />} />
           <Route path="/datenschutz" element={<Datenschutz />} />

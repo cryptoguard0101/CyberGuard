@@ -115,7 +115,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
         onClose={() => setRoleChangeState({isOpen: false, user: null, newRole: null})} // Cleanup on close
         onConfirm={() => {
           if (roleChangeState.user && roleChangeState.newRole) {
+            // Check if trying to demote the last active admin
+            if (roleChangeState.user.role === 'ADMIN' && roleChangeState.newRole !== 'ADMIN') {
+                const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== roleChangeState.user.id);
+                if (activeAdmins.length === 0) {
+                    alert("Die Rolle des letzten aktiven Administrators kann nicht geändert werden.");
+                    setRoleChangeState({isOpen: false, user: null, newRole: null});
+                    return;
+                }
+            }
             onChangeUserRole(roleChangeState.user.id, roleChangeState.newRole);
+            setRoleChangeState({isOpen: false, user: null, newRole: null});
           }
         }}
         title="Rolle ändern?"
@@ -271,20 +281,21 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
                   <div className="flex justify-end gap-2">
                     <button 
                         onClick={() => handleEditUser(user)}
-                        className="p-2 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-600"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all font-semibold"
                         title="Benutzer bearbeiten"
                     >
-                        <Edit size={16} />
+                        <Edit size={14} />
+                        <span>Bearbeiten</span>
                     </button>
                     <button 
                         onClick={() => {
                         setUserForLock(user);
                         setLockDialogOpen(true);
                     }}
-                        className={`p-2 rounded-md ${user.isLocked ? 'bg-gray-200 hover:bg-gray-300' : 'bg-red-100 hover:bg-red-200'}`}
+                        className={`p-2 rounded-lg border transition-all ${user.isLocked ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200' : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-100'}`}
                         title={user.isLocked ? "Entsperren" : "Sperren"}
                     >
-                        {user.isLocked ? <Unlock size={16} className="text-gray-600"/> : <Lock size={16} className="text-red-600"/>}
+                        {user.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
                     </button>
                   </div>
                 </td>
