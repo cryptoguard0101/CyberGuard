@@ -1,4 +1,4 @@
-import { Task, User, UserRole } from '../types';
+import { Task, User, UserRole, Framework } from '../types';
 import { INITIAL_TASKS } from '../constants';
 import { generateKeyFromPassword } from './cryptoService';
 
@@ -143,6 +143,14 @@ export const registerUser = async (user: User) => {
 
 export const getTasks = async (): Promise<Task[]> => {
     const data = await getSharedData();
+    
+    // Ensure BASIC tasks are always present if not already there
+    const hasBasicTasks = data.tasks.some(t => t.framework === Framework.BASIC);
+    if (!hasBasicTasks) {
+        data.tasks = [...INITIAL_TASKS, ...data.tasks];
+        await saveSharedData(data);
+    }
+    
     return data.tasks;
 };
 
