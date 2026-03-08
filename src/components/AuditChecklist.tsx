@@ -161,31 +161,33 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12 relative">
-      <div className="sticky top-0 z-30 bg-slate-50 border-b border-slate-200 -mx-4 px-4 md:-mx-8 md:px-8 mb-6">
-        <div className="flex items-center justify-between py-6">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Sicherheits-Checkliste</h1>
-            <p className="text-slate-500">Ihre individuellen Maßnahmen zur Compliance.</p>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setShowRoadmap(!showRoadmap)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
-                  showRoadmap ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg' : 'bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50'
-              }`}
-            >
-              <Calendar size={18} />
-              Roadmap
-              {isRoadmapOutdated && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Roadmap veraltet"></span>}
-            </button>
-            <button 
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-2 border rounded-lg transition-all shadow-sm ${
-                  showFilters ? 'bg-blue-600 text-white border-blue-700' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
-              }`}
-            >
-                <Filter size={20} />
-            </button>
+      <div className="sticky top-0 z-30 bg-slate-50 border-b border-slate-200 -mx-4 px-4 md:-mx-8 md:px-8 -mt-4 md:-mt-8 mb-6">
+        <div className="pt-4 md:pt-8">
+          <div className="flex items-center justify-between py-6">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Sicherheits-Checkliste</h1>
+              <p className="text-slate-500">Ihre individuellen Maßnahmen zur Compliance.</p>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowRoadmap(!showRoadmap)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
+                    showRoadmap ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg' : 'bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50'
+                }`}
+              >
+                <Calendar size={18} />
+                Roadmap
+                {isRoadmapOutdated && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Roadmap veraltet"></span>}
+              </button>
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={`p-2 border rounded-lg transition-all shadow-sm ${
+                    showFilters ? 'bg-blue-600 text-white border-blue-700' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                  <Filter size={20} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
