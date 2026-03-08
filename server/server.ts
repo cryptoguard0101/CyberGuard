@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Helper to ensure SSL certificates exist
-const ensureSslCertificates = () => {
+const ensureSslCertificates = async () => {
   const sslDir = path.join(__dirname, '../.ssl');
   const defaultKeyPath = path.join(sslDir, 'server.key');
   const defaultCertPath = path.join(sslDir, 'server.crt');
@@ -58,13 +58,25 @@ const ensureSslCertificates = () => {
         throw new Error(`selfsigned.generate is not a function. Type: ${typeof generateFn}`);
       }
 
-      const pems: any = generateFn(attrs, { days: 365 });
+      let pems: any = generateFn(attrs, { days: 365 });
       
-      console.log('[SSL] Debug - pems keys:', Object.keys(pems || {}));
+      // Check if it's a promise
+      if (pems && typeof pems.then === 'function') {
+        console.log('[SSL] Detected Promise from generate function, awaiting...');
+        pems = await pems;
+      }
+      
+      console.log('[SSL] Debug - pems type:', typeof pems);
+      if (pems) {
+        console.log('[SSL] Debug - pems keys:', Object.keys(pems));
+        // Log a bit of the content to see if it's there
+        if (pems.private || pems.privateKey || pems.key) console.log('[SSL] Private key data found');
+        if (pems.cert || pems.certificate) console.log('[SSL] Certificate data found');
+      }
       
       // Support different property names (private/privateKey and cert/certificate)
-      const privateKey = pems.private || pems.privateKey || pems.key;
-      const certificate = pems.cert || pems.certificate;
+      const privateKey = pems?.private || pems?.privateKey || pems?.key;
+      const certificate = pems?.cert || pems?.certificate;
 
       if (!privateKey || !certificate) {
         throw new Error('Generated certificates are missing private key or certificate data.');
@@ -189,7 +201,7 @@ const startServer = async () => {
   console.log(`[CyberGuard] Modus: ${process.env.NODE_ENV || 'development'}`);
   console.log(`[CyberGuard] Ziel-Port: ${PORT}`);
   
-  const sslConfig = ensureSslCertificates();
+  const sslConfig = await ensureSslCertificates();
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
