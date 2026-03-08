@@ -203,8 +203,8 @@ const startServer = async () => {
         console.warn('[Server] WARNING: Running native HTTPS on port 3000. This will fail in proxy environments (like AI Studio Build preview).');
       }
 
-      https.createServer(options, app).listen(PORT, () => {
-        console.log(`[Server] Native HTTPS Server running on port ${PORT}`);
+      https.createServer(options, app).listen(PORT, '0.0.0.0', () => {
+        console.log(`[Server] Native HTTPS Server running on port ${PORT} (Accessible at https://0.0.0.0:${PORT})`);
         if (process.env.AUTO_SSL === 'true') {
           console.log('[Server] Note: Using self-signed certificates. Browsers will show a warning.');
         }
@@ -217,8 +217,8 @@ const startServer = async () => {
 
   // Fallback to HTTP (standard for environments with external SSL termination like this one)
   console.log(`[Server] Starting HTTP server on port ${PORT}...`);
-  http.createServer(app).listen(PORT, () => {
-    console.log(`[Server] HTTP Server running on port ${PORT} (SSL should be handled by proxy)`);
+  http.createServer(app).listen(PORT, '0.0.0.0', () => {
+    console.log(`[Server] HTTP Server running on port ${PORT} (Accessible at http://0.0.0.0:${PORT})`);
   });
 };
 
