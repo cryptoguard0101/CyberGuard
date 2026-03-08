@@ -21,32 +21,48 @@ const __dirname = path.dirname(__filename);
 // Helper to ensure SSL certificates exist
 const ensureSslCertificates = () => {
   const sslDir = path.join(__dirname, '../.ssl');
-  const keyPath = process.env.SSL_KEY_PATH || path.join(sslDir, 'server.key');
-  const certPath = process.env.SSL_CERT_PATH || path.join(sslDir, 'server.crt');
+  const defaultKeyPath = path.join(sslDir, 'server.key');
+  const defaultCertPath = path.join(sslDir, 'server.crt');
+  
+  const keyPath = process.env.SSL_KEY_PATH || defaultKeyPath;
+  const certPath = process.env.SSL_CERT_PATH || defaultCertPath;
+
+  console.log(`[SSL] Checking for certificates at: ${keyPath}`);
 
   // Check if provided paths exist
   if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    console.log('[SSL] Existing certificates found.');
     return { keyPath, certPath };
   }
 
   // If AUTO_SSL is enabled, generate self-signed
   if (process.env.AUTO_SSL === 'true') {
-    if (!fs.existsSync(sslDir)) {
-      fs.mkdirSync(sslDir, { recursive: true });
-    }
+    console.log('[SSL] AUTO_SSL is enabled. Attempting to generate certificates...');
+    
+    try {
+      // Ensure the directory for the certificates exists
+      const targetDir = path.dirname(keyPath);
+      if (!fs.existsSync(targetDir)) {
+        console.log(`[SSL] Creating directory: ${targetDir}`);
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
 
-    if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
-      console.log('Generating self-signed SSL certificates...');
+      console.log('[SSL] Generating self-signed SSL certificates...');
       const attrs = [{ name: 'commonName', value: 'KMU CyberGuard' }];
+      // Use the generate method from selfsigned
       const pems = selfsigned.generate(attrs, { days: 365 });
       
       fs.writeFileSync(keyPath, pems.private, 'utf8');
       fs.writeFileSync(certPath, pems.cert, 'utf8');
-      console.log(`Self-signed certificates generated at: ${sslDir}`);
+      console.log(`[SSL] Self-signed certificates successfully generated at: ${keyPath}`);
+      return { keyPath, certPath };
+    } catch (err) {
+      console.error('[SSL] Failed to generate self-signed certificates:', err);
+      return null;
     }
-    return { keyPath, certPath };
   }
 
+  console.log('[SSL] No certificates found and AUTO_SSL is disabled.');
   return null;
 };
 
@@ -150,10 +166,12 @@ app.post('/api/admin/env', (req, res) => {
 
 // Server startup logic
 const startServer = async () => {
+  console.log(`[Server] Starting in ${process.env.NODE_ENV || 'development'} mode...`);
   const sslConfig = ensureSslCertificates();
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
+    console.log('[Server] Using Vite middleware for development.');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -161,6 +179,7 @@ const startServer = async () => {
     });
     app.use(vite.middlewares);
   } else {
+    console.log('[Server] Serving static files from dist.');
     // Serve static files from the React app in production
     app.use(express.static(path.join(__dirname, '../dist')));
     
@@ -173,25 +192,33 @@ const startServer = async () => {
 
   if (sslConfig) {
     try {
+      console.log(`[Server] Attempting to start HTTPS server on port ${PORT}...`);
       const options = {
         key: fs.readFileSync(sslConfig.keyPath),
         cert: fs.readFileSync(sslConfig.certPath),
       };
+      
+      // Check if we are in a proxy environment where native SSL on port 3000 might fail
+      if (PORT === '3000' || PORT === 3000) {
+        console.warn('[Server] WARNING: Running native HTTPS on port 3000. This will fail in proxy environments (like AI Studio Build preview).');
+      }
+
       https.createServer(options, app).listen(PORT, () => {
-        console.log(`Native HTTPS Server running on port ${PORT}`);
+        console.log(`[Server] Native HTTPS Server running on port ${PORT}`);
         if (process.env.AUTO_SSL === 'true') {
-          console.log('Note: Using self-signed certificates. Browsers will show a warning.');
+          console.log('[Server] Note: Using self-signed certificates. Browsers will show a warning.');
         }
       });
       return;
     } catch (error) {
-      console.error('Failed to start native HTTPS server, falling back to HTTP:', error);
+      console.error('[Server] Failed to start native HTTPS server, falling back to HTTP:', error);
     }
   }
 
   // Fallback to HTTP (standard for environments with external SSL termination like this one)
+  console.log(`[Server] Starting HTTP server on port ${PORT}...`);
   http.createServer(app).listen(PORT, () => {
-    console.log(`HTTP Server running on port ${PORT} (SSL handled by proxy)`);
+    console.log(`[Server] HTTP Server running on port ${PORT} (SSL should be handled by proxy)`);
   });
 };
 
