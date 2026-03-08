@@ -40,17 +40,27 @@ const ensureSslCertificates = () => {
     console.log('[SSL] AUTO_SSL is enabled. Attempting to generate certificates...');
     
     try {
-      // Ensure the directory for the certificates exists
       const targetDir = path.dirname(keyPath);
       if (!fs.existsSync(targetDir)) {
         console.log(`[SSL] Creating directory: ${targetDir}`);
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
+      console.log('[SSL] selfsigned module type:', typeof selfsigned);
+      console.log('[SSL] selfsigned keys:', Object.keys(selfsigned || {}));
+
       console.log('[SSL] Generating self-signed SSL certificates...');
       const attrs = [{ name: 'commonName', value: 'KMU CyberGuard' }];
-      // Generate certificates
-      const pems: any = selfsigned.generate(attrs, { days: 365 });
+      
+      // Try to get the generate function correctly
+      const generateFn = (selfsigned as any).generate || selfsigned;
+      if (typeof generateFn !== 'function') {
+        throw new Error(`selfsigned.generate is not a function. Type: ${typeof generateFn}`);
+      }
+
+      const pems: any = generateFn(attrs, { days: 365 });
+      
+      console.log('[SSL] Debug - pems keys:', Object.keys(pems || {}));
       
       // Support different property names (private/privateKey and cert/certificate)
       const privateKey = pems.private || pems.privateKey || pems.key;
