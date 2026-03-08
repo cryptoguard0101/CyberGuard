@@ -166,12 +166,15 @@ app.post('/api/admin/env', (req, res) => {
 
 // Server startup logic
 const startServer = async () => {
-  console.log(`[Server] Starting in ${process.env.NODE_ENV || 'development'} mode...`);
+  console.log('-------------------------------------------------------');
+  console.log(`[CyberGuard] Startvorgang eingeleitet...`);
+  console.log(`[CyberGuard] Modus: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`[CyberGuard] Ziel-Port: ${PORT}`);
+  
   const sslConfig = ensureSslCertificates();
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
-    console.log('[Server] Using Vite middleware for development.');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -179,12 +182,7 @@ const startServer = async () => {
     });
     app.use(vite.middlewares);
   } else {
-    console.log('[Server] Serving static files from dist.');
-    // Serve static files from the React app in production
     app.use(express.static(path.join(__dirname, '../dist')));
-    
-    // The "catchall" handler: for any request that doesn't
-    // match one above, send back React's index.html file.
     app.get(/.*/, (req, res) => {
       res.sendFile(path.join(__dirname, '../dist/index.html'));
     });
@@ -192,33 +190,44 @@ const startServer = async () => {
 
   if (sslConfig) {
     try {
-      console.log(`[Server] Attempting to start HTTPS server on port ${PORT}...`);
       const options = {
         key: fs.readFileSync(sslConfig.keyPath),
         cert: fs.readFileSync(sslConfig.certPath),
       };
       
-      // Check if we are in a proxy environment where native SSL on port 3000 might fail
-      if (PORT === '3000' || PORT === 3000) {
-        console.warn('[Server] WARNING: Running native HTTPS on port 3000. This will fail in proxy environments (like AI Studio Build preview).');
-      }
-
-      https.createServer(options, app).listen(PORT, '0.0.0.0', () => {
-        console.log(`[Server] Native HTTPS Server running on port ${PORT} (Accessible at https://0.0.0.0:${PORT})`);
-        if (process.env.AUTO_SSL === 'true') {
-          console.log('[Server] Note: Using self-signed certificates. Browsers will show a warning.');
+      const httpsServer = https.createServer(options, app);
+      
+      httpsServer.on('error', (e: Error & { code?: string }) => {
+        if (e.code === 'EADDRINUSE') {
+          console.error(`[FEHLER] Port ${PORT} wird bereits von einem anderen Programm belegt!`);
+        } else if (e.code === 'EACCES') {
+          console.error(`[FEHLER] Keine Berechtigung für Port ${PORT}. (Versuchen Sie sudo oder einen Port > 1024)`);
+        } else {
+          console.error(`[FEHLER] HTTPS-Server konnte nicht starten:`, e);
         }
+      });
+
+      httpsServer.listen(PORT, '0.0.0.0', () => {
+        console.log(`[ERFOLG] HTTPS-Server aktiv!`);
+        console.log(`[INFO] Lokal:    https://localhost:${PORT}`);
+        console.log(`[INFO] Netzwerk: https://192.168.0.34:${PORT} (Beispiel-IP)`);
+        console.log(`[WARN] Falls die Seite nicht lädt: Prüfen Sie Ihre Firewall für Port ${PORT}!`);
+        console.log('-------------------------------------------------------');
       });
       return;
     } catch (error) {
-      console.error('[Server] Failed to start native HTTPS server, falling back to HTTP:', error);
+      console.error('[SSL] Kritischer Fehler beim Laden der Zertifikate:', error);
     }
   }
 
-  // Fallback to HTTP (standard for environments with external SSL termination like this one)
-  console.log(`[Server] Starting HTTP server on port ${PORT}...`);
-  http.createServer(app).listen(PORT, '0.0.0.0', () => {
-    console.log(`[Server] HTTP Server running on port ${PORT} (Accessible at http://0.0.0.0:${PORT})`);
+  // Fallback to HTTP
+  console.log(`[INFO] Starte im HTTP-Modus (kein SSL aktiv)...`);
+  const httpServer = http.createServer(app);
+  
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[ERFOLG] HTTP-Server aktiv auf Port ${PORT}`);
+    console.log(`[INFO] Adresse: http://0.0.0.0:${PORT}`);
+    console.log('-------------------------------------------------------');
   });
 };
 
