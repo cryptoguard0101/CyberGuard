@@ -53,11 +53,13 @@ const ensureSslCertificates = async () => {
       const attrs = [{ name: 'commonName', value: 'KMU CyberGuard' }];
       
       // Try to get the generate function correctly
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const generateFn = (selfsigned as any).generate || selfsigned;
       if (typeof generateFn !== 'function') {
         throw new Error(`selfsigned.generate is not a function. Type: ${typeof generateFn}`);
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let pems: any = generateFn(attrs, { days: 365 });
       
       // Check if it's a promise
