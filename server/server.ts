@@ -8,6 +8,8 @@ import https from 'https';
 import http from 'http';
 import { fileURLToPath } from 'url';
 
+import selfsigned from 'selfsigned';
+
 dotenv.config();
 
 const app = express();
@@ -15,6 +17,38 @@ const PORT = process.env.PORT || 3000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Helper to ensure SSL certificates exist
+const ensureSslCertificates = () => {
+  const sslDir = path.join(__dirname, '../.ssl');
+  const keyPath = process.env.SSL_KEY_PATH || path.join(sslDir, 'server.key');
+  const certPath = process.env.SSL_CERT_PATH || path.join(sslDir, 'server.crt');
+
+  // Check if provided paths exist
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    return { keyPath, certPath };
+  }
+
+  // If AUTO_SSL is enabled, generate self-signed
+  if (process.env.AUTO_SSL === 'true') {
+    if (!fs.existsSync(sslDir)) {
+      fs.mkdirSync(sslDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+      console.log('Generating self-signed SSL certificates...');
+      const attrs = [{ name: 'commonName', value: 'KMU CyberGuard' }];
+      const pems = selfsigned.generate(attrs, { days: 365 });
+      
+      fs.writeFileSync(keyPath, pems.private, 'utf8');
+      fs.writeFileSync(certPath, pems.cert, 'utf8');
+      console.log(`Self-signed certificates generated at: ${sslDir}`);
+    }
+    return { keyPath, certPath };
+  }
+
+  return null;
+};
 
 app.use(cors());
 app.use(express.json());
@@ -116,7 +150,7 @@ app.post('/api/admin/env', (req, res) => {
 
 // Server startup logic
 const startServer = async () => {
-  const useNativeHttps = process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH;
+  const sslConfig = ensureSslCertificates();
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
@@ -137,14 +171,17 @@ const startServer = async () => {
     });
   }
 
-  if (useNativeHttps) {
+  if (sslConfig) {
     try {
       const options = {
-        key: fs.readFileSync(process.env.SSL_KEY_PATH!),
-        cert: fs.readFileSync(process.env.SSL_CERT_PATH!),
+        key: fs.readFileSync(sslConfig.keyPath),
+        cert: fs.readFileSync(sslConfig.certPath),
       };
       https.createServer(options, app).listen(PORT, () => {
         console.log(`Native HTTPS Server running on port ${PORT}`);
+        if (process.env.AUTO_SSL === 'true') {
+          console.log('Note: Using self-signed certificates. Browsers will show a warning.');
+        }
       });
       return;
     } catch (error) {
