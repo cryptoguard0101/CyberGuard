@@ -66,6 +66,54 @@ app.post('/api/send-email', async (req, res) => {
   }
 });
 
+// Admin API: Read .env file
+app.get('/api/admin/env', (req, res) => {
+  try {
+    const envPath = path.join(__dirname, '../.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      res.json({ content });
+    } else {
+      // If .env doesn't exist, try .env.example or return empty
+      const examplePath = path.join(__dirname, '../.env.example');
+      if (fs.existsSync(examplePath)) {
+        const content = fs.readFileSync(examplePath, 'utf8');
+        res.json({ content });
+      } else {
+        res.json({ content: '' });
+      }
+    }
+  } catch (error) {
+    console.error('Error reading .env:', error);
+    res.status(500).json({ error: 'Failed to read .env' });
+  }
+});
+
+// Admin API: Save .env file
+app.post('/api/admin/env', (req, res) => {
+  try {
+    const { content } = req.body;
+    if (content === undefined) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+    const envPath = path.join(__dirname, '../.env');
+    fs.writeFileSync(envPath, content, 'utf8');
+    
+    // Reload environment variables in current process (optional, but helpful)
+    // Note: This only updates process.env, it doesn't restart the server
+    const buf = Buffer.from(content);
+    const config = dotenv.parse(buf);
+    for (const k in config) {
+      process.env[k] = config[k];
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving .env:', error);
+    res.status(500).json({ error: 'Failed to save .env' });
+  }
+});
+
 // Server startup logic
 const startServer = async () => {
   const useNativeHttps = process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH;

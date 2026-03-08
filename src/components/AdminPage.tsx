@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { UserCog, Lock, Unlock, Search, UserPlus, Edit } from 'lucide-react';
+import { UserCog, Lock, Unlock, Search, UserPlus, Edit, Settings, Save, AlertTriangle, RefreshCcw, FileCode } from 'lucide-react';
 import ConfirmationDialog from './ConfirmationDialog';
 import NewUserDialog from './NewUserDialog';
+import * as api from '../services/apiService';
 
 interface AdminPageProps {
   users: User[];
@@ -14,6 +15,9 @@ interface AdminPageProps {
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChangeUserRole, onCreateUser, onResetMfa, onUpdateUser }) => {
+  const [activeTab, setActiveTab] = useState<'users' | 'system'>('users');
+  
+  // User Management State
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
   const [userForLock, setUserForLock] = useState<User | null>(null);
   
@@ -27,6 +31,49 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [editUsername, setEditUsername] = useState('');
+
+  // System Config State
+  const [envContent, setEnvContent] = useState('');
+  const [isEnvLoading, setIsEnvLoading] = useState(false);
+  const [isEnvSaving, setIsEnvSaving] = useState(false);
+  const [envError, setEnvError] = useState<string | null>(null);
+  const [envSuccess, setEnvSuccess] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'system') {
+      fetchEnv();
+    }
+  }, [activeTab]);
+
+  const fetchEnv = async () => {
+    setIsEnvLoading(true);
+    setEnvError(null);
+    try {
+      const content = await api.getEnv();
+      setEnvContent(content);
+    } catch (err) {
+      setEnvError('Fehler beim Laden der .env Datei.');
+      console.error(err);
+    } finally {
+      setIsEnvLoading(false);
+    }
+  };
+
+  const handleSaveEnv = async () => {
+    setIsEnvSaving(true);
+    setEnvError(null);
+    setEnvSuccess(false);
+    try {
+      await api.saveEnv(envContent);
+      setEnvSuccess(true);
+      setTimeout(() => setEnvSuccess(false), 3000);
+    } catch (err) {
+      setEnvError('Fehler beim Speichern der .env Datei.');
+      console.error(err);
+    } finally {
+      setIsEnvSaving(false);
+    }
+  };
 
   const handleEditUser = (user: User) => {
       setUserToEdit(user);
@@ -52,260 +99,354 @@ const AdminPage: React.FC<AdminPageProps> = ({ users, onToggleUserLock, onChange
     );
   }, [users, searchQuery]);
   return (
-    <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200">
-      <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 bg-slate-100 text-slate-600 rounded-lg">
-            <UserCog size={28} />
-        </div>
-        <div>
-            <h1 className="text-2xl font-bold text-slate-900">Benutzerverwaltung</h1>
-            <p className="text-slate-500">Verwalten Sie Benutzerkonten, Rollen und Sicherheits-Einstellungen.</p>
-        </div>
-        <div className="ml-auto">
-            <button 
-                onClick={() => setIsNewUserDialogOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:bg-slate-800 transition-colors"
-            >
-                <UserPlus size={16} />
-                Neuen Benutzer anlegen
-            </button>
-        </div>
+    <div className="space-y-6">
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
+        <button 
+          onClick={() => setActiveTab('users')}
+          className={`px-6 py-3 font-bold text-sm transition-all border-b-2 ${activeTab === 'users' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Benutzerverwaltung
+        </button>
+        <button 
+          onClick={() => setActiveTab('system')}
+          className={`px-6 py-3 font-bold text-sm transition-all border-b-2 ${activeTab === 'system' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          System-Konfiguration (.env)
+        </button>
       </div>
 
-      <ConfirmationDialog
-        isOpen={lockDialogOpen}
-        onClose={() => setLockDialogOpen(false)}
-        onConfirm={() => {
-          if (userForLock) {
-            // Check if trying to lock the last active admin
-            if (!userForLock.isLocked && userForLock.role === 'ADMIN') {
-                const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userForLock.id);
-                if (activeAdmins.length === 0) {
-                    alert("Der letzte aktive Administrator kann nicht gesperrt werden. Es muss mindestens ein weiterer aktiver Admin vorhanden sein.");
-                    setLockDialogOpen(false);
-                    return;
+      {activeTab === 'users' ? (
+        <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 animate-in fade-in duration-300">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-slate-100 text-slate-600 rounded-lg">
+                <UserCog size={28} />
+            </div>
+            <div>
+                <h1 className="text-2xl font-bold text-slate-900">Benutzerverwaltung</h1>
+                <p className="text-slate-500">Verwalten Sie Benutzerkonten, Rollen und Sicherheits-Einstellungen.</p>
+            </div>
+            <div className="ml-auto">
+                <button 
+                    onClick={() => setIsNewUserDialogOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                    <UserPlus size={16} />
+                    Neuen Benutzer anlegen
+                </button>
+            </div>
+          </div>
+
+          <ConfirmationDialog
+            isOpen={lockDialogOpen}
+            onClose={() => setLockDialogOpen(false)}
+            onConfirm={() => {
+              if (userForLock) {
+                // Check if trying to lock the last active admin
+                if (!userForLock.isLocked && userForLock.role === 'ADMIN') {
+                    const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== userForLock.id);
+                    if (activeAdmins.length === 0) {
+                        alert("Der letzte aktive Administrator kann nicht gesperrt werden. Es muss mindestens ein weiterer aktiver Admin vorhanden sein.");
+                        setLockDialogOpen(false);
+                        return;
+                    }
                 }
-            }
-            onToggleUserLock(userForLock.id);
-            setLockDialogOpen(false);
-          }
-        }}
-        title={`Benutzer ${userForLock?.isLocked ? 'entsperren' : 'sperren'}?`}
-        message={`Sind Sie sicher, dass Sie das Konto von ${userForLock?.email} ${userForLock?.isLocked ? 'entsperren' : 'sperren'} möchten?`}
-        confirmButtonText={userForLock?.isLocked ? 'Entsperren' : 'Sperren'}
-        confirmButtonColor={userForLock?.isLocked ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
-      />
+                onToggleUserLock(userForLock.id);
+                setLockDialogOpen(false);
+              }
+            }}
+            title={`Benutzer ${userForLock?.isLocked ? 'entsperren' : 'sperren'}?`}
+            message={`Sind Sie sicher, dass Sie das Konto von ${userForLock?.email} ${userForLock?.isLocked ? 'entsperren' : 'sperren'} möchten?`}
+            confirmButtonText={userForLock?.isLocked ? 'Entsperren' : 'Sperren'}
+            confirmButtonColor={userForLock?.isLocked ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+          />
 
-      <ConfirmationDialog
-        isOpen={mfaResetDialogOpen}
-        onClose={() => setMfaResetDialogOpen(false)}
-        onConfirm={() => {
-          if (userForMfaReset) {
-            onResetMfa(userForMfaReset.id);
-          }
-        }}
-        title="2FA zurücksetzen?"
-        message={`Sind Sie sicher, dass Sie die Zwei-Faktor-Authentifizierung für ${userForMfaReset?.email} zurücksetzen möchten? Der Benutzer muss sie beim nächsten Login neu einrichten.`}
-        confirmButtonText="Zurücksetzen"
-        confirmButtonColor="bg-amber-600 hover:bg-amber-700"
-      />
+          <ConfirmationDialog
+            isOpen={mfaResetDialogOpen}
+            onClose={() => setMfaResetDialogOpen(false)}
+            onConfirm={() => {
+              if (userForMfaReset) {
+                onResetMfa(userForMfaReset.id);
+              }
+            }}
+            title="2FA zurücksetzen?"
+            message={`Sind Sie sicher, dass Sie die Zwei-Faktor-Authentifizierung für ${userForMfaReset?.email} zurücksetzen möchten? Der Benutzer muss sie beim nächsten Login neu einrichten.`}
+            confirmButtonText="Zurücksetzen"
+            confirmButtonColor="bg-amber-600 hover:bg-amber-700"
+          />
 
-      <ConfirmationDialog
-        isOpen={roleChangeState.isOpen}
-        onClose={() => setRoleChangeState({isOpen: false, user: null, newRole: null})} // Cleanup on close
-        onConfirm={() => {
-          const targetUser = roleChangeState.user;
-          const targetRole = roleChangeState.newRole;
-          if (targetUser && targetRole) {
-            // Check if trying to demote the last active admin
-            if (targetUser.role === 'ADMIN' && targetRole !== 'ADMIN') {
-                const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== targetUser.id);
-                if (activeAdmins.length === 0) {
-                    alert("Die Rolle des letzten verbleibenden Admins kann nicht verändert werden. Es muss mindestens ein weiterer Admin vorhanden sein, damit man den Admin in seiner Rolle ändern kann.");
-                    setRoleChangeState({isOpen: false, user: null, newRole: null});
-                    return;
+          <ConfirmationDialog
+            isOpen={roleChangeState.isOpen}
+            onClose={() => setRoleChangeState({isOpen: false, user: null, newRole: null})} // Cleanup on close
+            onConfirm={() => {
+              const targetUser = roleChangeState.user;
+              const targetRole = roleChangeState.newRole;
+              if (targetUser && targetRole) {
+                // Check if trying to demote the last active admin
+                if (targetUser.role === 'ADMIN' && targetRole !== 'ADMIN') {
+                    const activeAdmins = users.filter(u => u.role === 'ADMIN' && !u.isLocked && u.id !== targetUser.id);
+                    if (activeAdmins.length === 0) {
+                        alert("Die Rolle des letzten verbleibenden Admins kann nicht verändert werden. Es muss mindestens ein weiterer Admin vorhanden sein, damit man den Admin in seiner Rolle ändern kann.");
+                        setRoleChangeState({isOpen: false, user: null, newRole: null});
+                        return;
+                    }
                 }
-            }
-            onChangeUserRole(targetUser.id, targetRole);
-            setRoleChangeState({isOpen: false, user: null, newRole: null});
-          }
-        }}
-        title="Rolle ändern?"
-        message={`Sind Sie sicher, dass Sie die Rolle für ${roleChangeState.user?.email} zu "${roleChangeState.newRole}" ändern möchten?`}
-        confirmButtonText="Rolle ändern"
-        confirmButtonColor="bg-blue-600 hover:bg-blue-700"
-      />
+                onChangeUserRole(targetUser.id, targetRole);
+                setRoleChangeState({isOpen: false, user: null, newRole: null});
+              }
+            }}
+            title="Rolle ändern?"
+            message={`Sind Sie sicher, dass Sie die Rolle für ${roleChangeState.user?.email} zu "${roleChangeState.newRole}" ändern möchten?`}
+            confirmButtonText="Rolle ändern"
+            confirmButtonColor="bg-blue-600 hover:bg-blue-700"
+          />
 
-      <NewUserDialog 
-        isOpen={isNewUserDialogOpen}
-        onClose={() => setIsNewUserDialogOpen(false)}
-        onCreateUser={onCreateUser}
-      />
+          <NewUserDialog 
+            isOpen={isNewUserDialogOpen}
+            onClose={() => setIsNewUserDialogOpen(false)}
+            onCreateUser={onCreateUser}
+          />
 
-      {/* Edit User Dialog */}
-      {editUserDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="p-6 border-b border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-900">Benutzer bearbeiten</h3>
-                    <p className="text-sm text-slate-500">Ändern Sie die Details für {userToEdit?.email}</p>
-                </div>
-                <div className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Anzeigename</label>
-                        <input 
-                            type="text" 
-                            value={editUsername} 
-                            onChange={(e) => setEditUsername(e.target.value)}
-                            placeholder="Name eingeben"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            autoFocus
-                        />
+          {/* Edit User Dialog */}
+          {editUserDialogOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="p-6 border-b border-slate-100">
+                        <h3 className="text-lg font-bold text-slate-900">Benutzer bearbeiten</h3>
+                        <p className="text-sm text-slate-500">Ändern Sie die Details für {userToEdit?.email}</p>
                     </div>
-                </div>
-                <div className="p-4 bg-slate-50 flex justify-end gap-3">
-                    <button 
-                        onClick={() => setEditUserDialogOpen(false)}
-                        className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-medium transition-colors"
-                    >
-                        Abbrechen
-                    </button>
-                    <button 
-                        onClick={saveUserEdit}
-                        className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium transition-colors"
-                    >
-                        Speichern
-                    </button>
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Anzeigename</label>
+                            <input 
+                                type="text" 
+                                value={editUsername} 
+                                onChange={(e) => setEditUsername(e.target.value)}
+                                placeholder="Name eingeben"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                    <div className="p-4 bg-slate-50 flex justify-end gap-3">
+                        <button 
+                            onClick={() => setEditUserDialogOpen(false)}
+                            className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-medium transition-colors"
+                        >
+                            Abbrechen
+                        </button>
+                        <button 
+                            onClick={saveUserEdit}
+                            className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium transition-colors"
+                        >
+                            Speichern
+                        </button>
+                    </div>
                 </div>
             </div>
+          )}
+
+          <div className="mb-4 relative">
+            <input 
+              type="text"
+              placeholder="Benutzer suchen (E-Mail oder Name)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              {filteredUsers.length === 0 && (
+                <caption className="py-8 text-center text-slate-400">
+                  Keine Benutzer gefunden, die Ihrer Suche entsprechen.
+                </caption>
+              )}
+              <thead className="bg-slate-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Benutzer</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Rolle</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">2FA Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Letzter Login</th>
+                  <th scope="col" className="relative px-6 py-3">
+                    <span className="sr-only">Aktionen</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {filteredUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0 bg-slate-200 rounded-full flex items-center justify-center">
+                            <span className='font-bold text-slate-600'>{user.email.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-slate-900">{user.username || 'N/A'}</div>
+                          <div className="text-sm text-slate-500">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select 
+                        value={user.role}
+                        onChange={(e) => {
+                          const selectedRole = e.target.value as UserRole;
+                          if (selectedRole !== user.role) {
+                            setRoleChangeState({isOpen: true, user: user, newRole: selectedRole});
+                          }
+                        }}
+                        className="text-xs p-1 rounded-md border-slate-300 bg-slate-50 focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        <option value="" disabled>Rolle ändern...</option>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="EMPLOYEE">EMPLOYEE</option>
+                        <option value="IT_PROVIDER">IT_PROVIDER</option>
+                        <option value="VIEWER">VIEWER</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                        {user.mfaSecret ? (
+                            <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                    Aktiviert (TOTP)
+                                </span>
+                                <button 
+                                    onClick={() => {
+                                        setUserForMfaReset(user);
+                                        setMfaResetDialogOpen(true);
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                        ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                E-Mail (Standard)
+                            </span>
+                        )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                        {user.isLocked ? (
+                            <span className='inline-flex items-center gap-1.5 text-xs text-red-700'>
+                                <Lock size={12} /> Gesperrt
+                            </span>
+                        ) : (
+                            <span className='inline-flex items-center gap-1.5 text-xs text-green-700'>
+                                <Unlock size={12} /> Aktiv
+                            </span>
+                        )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Nie'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                            onClick={() => handleEditUser(user)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all font-semibold"
+                            title="Benutzer bearbeiten"
+                        >
+                            <Edit size={14} />
+                            <span>Bearbeiten</span>
+                        </button>
+                        <button 
+                            onClick={() => {
+                            setUserForLock(user);
+                            setLockDialogOpen(true);
+                        }}
+                            className={`p-2 rounded-lg border transition-all ${user.isLocked ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200' : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-100'}`}
+                            title={user.isLocked ? "Entsperren" : "Sperren"}
+                        >
+                            {user.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 animate-in fade-in duration-300">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
+                <Settings size={28} />
+            </div>
+            <div>
+                <h1 className="text-2xl font-bold text-slate-900">System-Konfiguration</h1>
+                <p className="text-slate-500">Bearbeiten Sie die .env Datei direkt aus der Oberfläche.</p>
+            </div>
+            <div className="ml-auto flex gap-2">
+                <button 
+                    onClick={fetchEnv}
+                    disabled={isEnvLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 font-semibold rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                    <RefreshCcw size={16} className={isEnvLoading ? 'animate-spin' : ''} />
+                    Neu laden
+                </button>
+                <button 
+                    onClick={handleSaveEnv}
+                    disabled={isEnvSaving || isEnvLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-md shadow-blue-200"
+                >
+                    {isEnvSaving ? <RefreshCcw size={16} className="animate-spin" /> : <Save size={16} />}
+                    Speichern
+                </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                <div>
+                  <p className="text-sm font-bold text-amber-800">Warnung: Kritische Einstellungen</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Änderungen an der .env Datei können die Stabilität der Anwendung beeinträchtigen. 
+                    Bitte stellen Sie sicher, dass alle Werte korrekt sind. Nach dem Speichern werden die Variablen im laufenden Prozess aktualisiert, 
+                    ein kompletter Neustart des Dienstes kann jedoch für manche Änderungen erforderlich sein.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <div className="absolute top-3 right-3 flex items-center gap-2 text-slate-400 group-hover:text-slate-500 transition-colors">
+                <FileCode size={16} />
+                <span className="text-[10px] font-bold uppercase tracking-widest">.env Editor</span>
+              </div>
+              <textarea 
+                value={envContent}
+                onChange={(e) => setEnvContent(e.target.value)}
+                spellCheck={false}
+                className="w-full h-[500px] p-6 font-mono text-sm bg-slate-900 text-emerald-400 rounded-xl border border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner"
+                placeholder="# Environment Variables..."
+              />
+            </div>
+
+            {envError && (
+              <div className="p-4 bg-red-50 border border-red-100 text-red-700 rounded-lg flex items-center gap-3 animate-in slide-in-from-top-2">
+                <AlertTriangle size={20} />
+                <span className="text-sm font-medium">{envError}</span>
+              </div>
+            )}
+
+            {envSuccess && (
+              <div className="p-4 bg-green-50 border border-green-100 text-green-700 rounded-lg flex items-center gap-3 animate-in slide-in-from-top-2">
+                <Save size={20} />
+                <span className="text-sm font-medium">Konfiguration erfolgreich gespeichert!</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
-
-      <div className="mb-4 relative">
-        <input 
-          type="text"
-          placeholder="Benutzer suchen (E-Mail oder Name)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-        />
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200">
-          {filteredUsers.length === 0 && (
-            <caption className="py-8 text-center text-slate-400">
-              Keine Benutzer gefunden, die Ihrer Suche entsprechen.
-            </caption>
-          )}
-          <thead className="bg-slate-50">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Benutzer</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Rolle</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">2FA Status</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Letzter Login</th>
-              <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">Aktionen</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-slate-200">
-            {filteredUsers.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 flex-shrink-0 bg-slate-200 rounded-full flex items-center justify-center">
-                        <span className='font-bold text-slate-600'>{user.email.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-slate-900">{user.username || 'N/A'}</div>
-                      <div className="text-sm text-slate-500">{user.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <select 
-                    value={user.role}
-                    onChange={(e) => {
-                      const selectedRole = e.target.value as UserRole;
-                      if (selectedRole !== user.role) {
-                        setRoleChangeState({isOpen: true, user: user, newRole: selectedRole});
-                      }
-                    }}
-                    className="text-xs p-1 rounded-md border-slate-300 bg-slate-50 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="" disabled>Rolle ändern...</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="EMPLOYEE">EMPLOYEE</option>
-                    <option value="IT_PROVIDER">IT_PROVIDER</option>
-                    <option value="VIEWER">VIEWER</option>
-                  </select>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                    {user.mfaSecret ? (
-                        <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                Aktiviert (TOTP)
-                            </span>
-                            <button 
-                                onClick={() => {
-                                    setUserForMfaReset(user);
-                                    setMfaResetDialogOpen(true);
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                                Reset
-                            </button>
-                        </div>
-                    ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                            E-Mail (Standard)
-                        </span>
-                    )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                    {user.isLocked ? (
-                        <span className='inline-flex items-center gap-1.5 text-xs text-red-700'>
-                            <Lock size={12} /> Gesperrt
-                        </span>
-                    ) : (
-                        <span className='inline-flex items-center gap-1.5 text-xs text-green-700'>
-                            <Unlock size={12} /> Aktiv
-                        </span>
-                    )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                  {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Nie'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex justify-end gap-2">
-                    <button 
-                        onClick={() => handleEditUser(user)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all font-semibold"
-                        title="Benutzer bearbeiten"
-                    >
-                        <Edit size={14} />
-                        <span>Bearbeiten</span>
-                    </button>
-                    <button 
-                        onClick={() => {
-                        setUserForLock(user);
-                        setLockDialogOpen(true);
-                    }}
-                        className={`p-2 rounded-lg border transition-all ${user.isLocked ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200' : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-100'}`}
-                        title={user.isLocked ? "Entsperren" : "Sperren"}
-                    >
-                        {user.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 };

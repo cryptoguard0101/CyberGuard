@@ -93,8 +93,8 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between sticky top-0 bg-slate-50 py-4 z-10 border-b border-slate-200 mb-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-12 relative">
+      <div className="flex items-center justify-between sticky top-0 bg-slate-50/95 backdrop-blur-md py-6 z-20 border-b border-slate-200 -mx-4 px-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Sicherheits-Checkliste</h1>
           <p className="text-slate-500">Ihre individuellen Maßnahmen zur Compliance.</p>
