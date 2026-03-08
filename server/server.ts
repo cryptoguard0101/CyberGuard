@@ -10,13 +10,15 @@ import { fileURLToPath } from 'url';
 
 import selfsigned from 'selfsigned';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from the root directory relative to this file
+const envPath = path.join(__dirname, '../.env');
+dotenv.config({ path: envPath });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Helper to ensure SSL certificates exist
 const ensureSslCertificates = async () => {
@@ -202,6 +204,7 @@ const startServer = async () => {
   console.log(`[CyberGuard] Startvorgang eingeleitet...`);
   console.log(`[CyberGuard] Modus: ${process.env.NODE_ENV || 'development'}`);
   console.log(`[CyberGuard] Ziel-Port: ${PORT}`);
+  console.log(`[CyberGuard] AUTO_SSL: ${process.env.AUTO_SSL}`);
   
   const sslConfig = await ensureSslCertificates();
 

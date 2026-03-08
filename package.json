@@ -9,6 +9,7 @@
     "build:server": "esbuild server/server.ts --bundle --platform=node --target=node20 --outfile=dist/server.js --format=esm --external:express --external:nodemailer --external:cors --external:dotenv --external:vite",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "start": "npm run start:prod",
     "start:prod": "node dist/server.js"
   },
   "dependencies": {

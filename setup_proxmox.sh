@@ -61,6 +61,8 @@ SMTP_USER=user@example.com
 SMTP_PASS=password
 SMTP_FROM="KMU CyberGuard <noreply@example.com>"
 GEMINI_API_KEY=your_gemini_api_key_here
+AUTO_SSL=true
+FORCE_HTTPS=true
 EOF
     echo "WARNING: Please edit $APP_DIR/.env with your actual configuration!"
 fi

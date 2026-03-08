@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { CheckSquare, Filter, ChevronRight, Info, ShieldCheck, FileText, Upload, RefreshCcw, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
-import { Task, User, TaskStatus } from '../types';
-import { explainTask, verifyDocumentWithAI } from '../services/geminiService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CheckSquare, Filter, ChevronRight, Info, ShieldCheck, FileText, Upload, RefreshCcw, Sparkles, CheckCircle2, XCircle, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { Task, User, TaskStatus, Roadmap, Framework } from '../types';
+import { explainTask, verifyDocumentWithAI, generateSecurityRoadmap } from '../services/geminiService';
 import Markdown from 'react-markdown';
 
 interface AuditChecklistProps {
@@ -16,6 +16,73 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
   const [isExplaining, setIsExplaining] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{ verified: boolean; reason: string } | null>(null);
+  
+  // Roadmap State
+  const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
+  const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
+  const [showRoadmap, setShowRoadmap] = useState(false);
+
+  // Filter State
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<TaskStatus | 'ALL'>('ALL');
+  const [filterFramework, setFilterFramework] = useState<Framework | 'ALL'>('ALL');
+  const [filterImpact, setFilterImpact] = useState<'HIGH' | 'MEDIUM' | 'LOW' | 'ALL'>('ALL');
+
+  // Load roadmap from localStorage if it exists
+  useEffect(() => {
+    const savedRoadmap = localStorage.getItem('cyberguard-roadmap');
+    if (savedRoadmap) {
+        try {
+            const parsed = JSON.parse(savedRoadmap);
+            setRoadmap({
+                ...parsed,
+                generatedAt: new Date(parsed.generatedAt)
+            });
+        } catch (e) {
+            console.error("Failed to parse saved roadmap", e);
+        }
+    }
+  }, []);
+
+  // Save roadmap to localStorage
+  useEffect(() => {
+    if (roadmap) {
+        localStorage.setItem('cyberguard-roadmap', JSON.stringify(roadmap));
+    }
+  }, [roadmap]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+        const matchStatus = filterStatus === 'ALL' || task.status === filterStatus;
+        const matchFramework = filterFramework === 'ALL' || task.framework === filterFramework;
+        const matchImpact = filterImpact === 'ALL' || task.impact === filterImpact;
+        return matchStatus && matchFramework && matchImpact;
+    });
+  }, [tasks, filterStatus, filterFramework, filterImpact]);
+
+  const isRoadmapOutdated = useMemo(() => {
+    if (!roadmap || tasks.length === 0) return false;
+    // Simple check: if any task was added or changed after roadmap generation
+    // In a real app we might track task modification dates. 
+    // For now, if the number of tasks changed or if the roadmap is older than 5 minutes and tasks exist.
+    // Let's just check if the task IDs in the roadmap still match the open tasks.
+    const openTaskIds = tasks.filter(t => t.status === TaskStatus.TODO).map(t => t.id).sort().join(',');
+    const roadmapTaskIds = roadmap.phases.flatMap(p => p.taskIds).sort().join(',');
+    return openTaskIds !== roadmapTaskIds;
+  }, [roadmap, tasks]);
+
+  const handleGenerateRoadmap = async () => {
+    setIsGeneratingRoadmap(true);
+    try {
+        const newRoadmap = await generateSecurityRoadmap(tasks);
+        setRoadmap(newRoadmap);
+        setShowRoadmap(true);
+    } catch (error) {
+        console.error("Roadmap Error:", error);
+    } finally {
+        setIsGeneratingRoadmap(false);
+    }
+  };
 
   const handleToggleTask = async (task: Task) => {
     if (expandedTaskId === task.id) {
@@ -100,19 +167,205 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
           <p className="text-slate-500">Ihre individuellen Maßnahmen zur Compliance.</p>
         </div>
         <div className="flex gap-2">
-          <button className="p-2 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-all shadow-sm">
+          <button 
+            onClick={() => setShowRoadmap(!showRoadmap)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
+                showRoadmap ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg' : 'bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50'
+            }`}
+          >
+            <Calendar size={18} />
+            Roadmap
+            {isRoadmapOutdated && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Roadmap veraltet"></span>}
+          </button>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`p-2 border rounded-lg transition-all shadow-sm ${
+                showFilters ? 'bg-blue-600 text-white border-blue-700' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
+            }`}
+          >
               <Filter size={20} />
           </button>
         </div>
       </div>
 
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg animate-in fade-in slide-in-from-top-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Status</label>
+                    <div className="flex flex-wrap gap-2">
+                        {(['ALL', TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE] as const).map(s => (
+                            <button 
+                                key={s}
+                                onClick={() => setFilterStatus(s)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    filterStatus === s ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
+                                }`}
+                            >
+                                {s === 'ALL' ? 'Alle' : s}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Framework</label>
+                    <div className="flex flex-wrap gap-2">
+                        {(['ALL', Framework.BASIC, Framework.BSI, Framework.NIS2, Framework.ISO27001] as const).map(f => (
+                            <button 
+                                key={f}
+                                onClick={() => setFilterFramework(f)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    filterFramework === f ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
+                                }`}
+                            >
+                                {f === 'ALL' ? 'Alle' : f}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Priorität</label>
+                    <div className="flex flex-wrap gap-2">
+                        {(['ALL', 'HIGH', 'MEDIUM', 'LOW'] as const).map(i => (
+                            <button 
+                                key={i}
+                                onClick={() => setFilterImpact(i)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    filterImpact === i ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
+                                }`}
+                            >
+                                {i === 'ALL' ? 'Alle' : i}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                <button 
+                    onClick={() => { setFilterStatus('ALL'); setFilterFramework('ALL'); setFilterImpact('ALL'); }}
+                    className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors"
+                >
+                    Filter zurücksetzen
+                </button>
+            </div>
+        </div>
+      )}
+
+      {/* Roadmap Section */}
+      {showRoadmap && (
+        <div className="bg-indigo-900 text-white p-8 rounded-3xl shadow-xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="relative z-10">
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-800 rounded-xl">
+                            <Calendar size={24} className="text-indigo-300" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold">KI-Sicherheits-Roadmap</h2>
+                            <p className="text-indigo-300 text-sm">Empfohlene Strategie zur Umsetzung Ihrer Maßnahmen.</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={handleGenerateRoadmap}
+                        disabled={isGeneratingRoadmap}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all backdrop-blur-sm border border-white/10"
+                    >
+                        {isGeneratingRoadmap ? <RefreshCcw size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        {roadmap ? 'Neu evaluieren' : 'Roadmap erstellen'}
+                    </button>
+                </div>
+
+                {isGeneratingRoadmap ? (
+                    <div className="space-y-6 py-12">
+                        <div className="flex flex-col items-center justify-center text-center">
+                            <div className="w-16 h-16 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="text-indigo-200 font-medium">KI analysiert Ihre Aufgaben und erstellt einen Zeitplan...</p>
+                        </div>
+                    </div>
+                ) : roadmap ? (
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {roadmap.phases.map((phase, idx) => (
+                            <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all group">
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300 bg-indigo-800/50 px-2 py-1 rounded">
+                                        Phase {idx + 1}
+                                    </span>
+                                    <div className="flex items-center gap-1 text-xs text-indigo-300">
+                                        <Clock size={14} />
+                                        {phase.timeframe}
+                                    </div>
+                                </div>
+                                <h3 className="text-lg font-bold mb-2 group-hover:text-indigo-200 transition-colors">{phase.title}</h3>
+                                <p className="text-sm text-indigo-100/70 mb-6 leading-relaxed">{phase.description}</p>
+                                
+                                <div className="space-y-2">
+                                    <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Zugeordnete Aufgaben</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {phase.taskIds.map(tid => {
+                                            const task = tasks.find(t => t.id === tid);
+                                            if (!task) return null;
+                                            return (
+                                                <div 
+                                                    key={tid} 
+                                                    onClick={() => {
+                                                        setExpandedTaskId(tid);
+                                                        const el = document.getElementById(`task-${tid}`);
+                                                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                    }}
+                                                    className="px-2 py-1 bg-white/10 rounded text-[10px] font-medium hover:bg-white/20 cursor-pointer transition-colors"
+                                                >
+                                                    {task.title}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-12 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                        <Sparkles size={48} className="text-indigo-400 mx-auto mb-4 opacity-50" />
+                        <h3 className="text-xl font-bold">Keine Roadmap vorhanden</h3>
+                        <p className="text-indigo-300 mt-2 max-w-sm mx-auto">Lassen Sie die KI Ihre Aufgaben analysieren, um eine optimale Reihenfolge und Zeitplanung zu erhalten.</p>
+                        <button 
+                            onClick={handleGenerateRoadmap}
+                            className="mt-6 px-8 py-3 bg-white text-indigo-900 font-bold rounded-xl hover:bg-indigo-50 transition-all"
+                        >
+                            Jetzt generieren
+                        </button>
+                    </div>
+                )}
+                
+                {roadmap && isRoadmapOutdated && (
+                    <div className="mt-8 p-4 bg-amber-500/20 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-amber-200 text-sm">
+                        <AlertTriangle size={20} />
+                        <p>Ihre Aufgabenliste hat sich geändert. Die Roadmap sollte neu evaluiert werden, um aktuell zu bleiben.</p>
+                        <button 
+                            onClick={handleGenerateRoadmap}
+                            className="ml-auto px-4 py-1.5 bg-amber-500 text-white rounded-lg font-bold text-xs hover:bg-amber-600 transition-all"
+                        >
+                            Aktualisieren
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Decorative elements */}
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-800 rounded-full opacity-20 blur-3xl"></div>
+            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-indigo-700 rounded-full opacity-10 blur-2xl"></div>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {tasks.length > 0 ? (
-          tasks.map(task => {
+        {filteredTasks.length > 0 ? (
+          filteredTasks.map(task => {
             const isExpanded = expandedTaskId === task.id;
             return (
               <div 
                 key={task.id} 
+                id={`task-${task.id}`}
                 className={`bg-white rounded-2xl border transition-all overflow-hidden ${
                     isExpanded ? 'border-blue-500 ring-4 ring-blue-50 shadow-xl' : 'border-slate-200 hover:border-blue-300 shadow-sm'
                 }`}
