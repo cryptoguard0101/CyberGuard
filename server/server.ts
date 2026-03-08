@@ -3,6 +3,9 @@ import nodemailer from 'nodemailer';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
+import https from 'https';
+import http from 'http';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -16,18 +19,26 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../dist')));
-
 // Email configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+});
+
+// HTTPS Redirect Middleware (for production/proxy environments)
+app.use((req, res, next) => {
+  // Check x-forwarded-proto header which is set by most reverse proxies
+  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  
+  if (process.env.FORCE_HTTPS === 'true' && !isSecure) {
+    return res.redirect(`https://${req.headers.host}${req.url}`);
+  }
+  next();
 });
 
 // API endpoint to send email
@@ -55,12 +66,48 @@ app.post('/api/send-email', async (req, res) => {
   }
 });
 
-// The "catchall" handler: for any request that doesn't
-// match one above, send back React's index.html file.
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
+// Server startup logic
+const startServer = async () => {
+  const useNativeHttps = process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    // Serve static files from the React app in production
+    app.use(express.static(path.join(__dirname, '../dist')));
+    
+    // The "catchall" handler: for any request that doesn't
+    // match one above, send back React's index.html file.
+    app.get(/.*/, (req, res) => {
+      res.sendFile(path.join(__dirname, '../dist/index.html'));
+    });
+  }
+
+  if (useNativeHttps) {
+    try {
+      const options = {
+        key: fs.readFileSync(process.env.SSL_KEY_PATH!),
+        cert: fs.readFileSync(process.env.SSL_CERT_PATH!),
+      };
+      https.createServer(options, app).listen(PORT, () => {
+        console.log(`Native HTTPS Server running on port ${PORT}`);
+      });
+      return;
+    } catch (error) {
+      console.error('Failed to start native HTTPS server, falling back to HTTP:', error);
+    }
+  }
+
+  // Fallback to HTTP (standard for environments with external SSL termination like this one)
+  http.createServer(app).listen(PORT, () => {
+    console.log(`HTTP Server running on port ${PORT} (SSL handled by proxy)`);
+  });
+};
+
+startServer();
