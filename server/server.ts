@@ -49,11 +49,19 @@ const ensureSslCertificates = () => {
 
       console.log('[SSL] Generating self-signed SSL certificates...');
       const attrs = [{ name: 'commonName', value: 'KMU CyberGuard' }];
-      // Use the generate method from selfsigned
-      const pems = selfsigned.generate(attrs, { days: 365 });
+      // Generate certificates
+      const pems: any = selfsigned.generate(attrs, { days: 365 });
       
-      fs.writeFileSync(keyPath, pems.private, 'utf8');
-      fs.writeFileSync(certPath, pems.cert, 'utf8');
+      // Support different property names (private/privateKey and cert/certificate)
+      const privateKey = pems.private || pems.privateKey || pems.key;
+      const certificate = pems.cert || pems.certificate;
+
+      if (!privateKey || !certificate) {
+        throw new Error('Generated certificates are missing private key or certificate data.');
+      }
+      
+      fs.writeFileSync(keyPath, privateKey, 'utf8');
+      fs.writeFileSync(certPath, certificate, 'utf8');
       console.log(`[SSL] Self-signed certificates successfully generated at: ${keyPath}`);
       return { keyPath, certPath };
     } catch (err) {
