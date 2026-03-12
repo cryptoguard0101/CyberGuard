@@ -1,0 +1,130 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (from Firebase Auth)
+    // Fields:
+    //   - id: string (required)
+    //   - email: string (required)
+    //   - role: string (required, enum: ADMIN, EMPLOYEE, IT_PROVIDER, VIEWER)
+    //   - username: string (optional)
+    //   - avatar: string (optional)
+    //   - lastLogin: string (optional)
+    //   - isNis2Relevant: boolean (optional)
+    //   - coaching: map (optional)
+    //
+    // Collection: tasks
+    // Document ID: taskId
+    // Fields:
+    //   - id: string (required)
+    //   - title: string (required)
+    //   - description: string (required)
+    //   - status: string (required, enum: TODO, IN_PROGRESS, DONE, NOT_APPLICABLE)
+    //   - category: string (required)
+    //   - framework: string (required)
+    //   - impact: string (required, enum: LOW, MEDIUM, HIGH)
+    //   - explanation: string (optional)
+    //   - source: string (optional)
+    //   - assigneeId: string (optional)
+    //   - dueDate: string (optional)
+    //   - comments: list (optional)
+    //   - documents: list (optional)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN') ||
+        (request.auth.token.email == "daniel@selbach-consulting.de" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['ADMIN', 'EMPLOYEE', 'IT_PROVIDER', 'VIEWER'] &&
+             (!('username' in data) || (data.username is string && data.username.size() <= 100)) &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 1000)) &&
+             (!('lastLogin' in data) || data.lastLogin is string) &&
+             (!('isNis2Relevant' in data) || data.isNis2Relevant is bool) &&
+             (!('coaching' in data) || data.coaching is map);
+    }
+
+    function isValidTask(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.description is string && data.description.size() <= 5000 &&
+             data.status in ['TODO', 'IN_PROGRESS', 'DONE', 'NOT_APPLICABLE'] &&
+             data.category is string && data.category.size() <= 100 &&
+             data.framework is string && data.framework.size() <= 100 &&
+             data.impact in ['LOW', 'MEDIUM', 'HIGH'] &&
+             (!('explanation' in data) || (data.explanation is string && data.explanation.size() <= 2000)) &&
+             (!('source' in data) || (data.source is string && data.source.size() <= 100)) &&
+             (!('assigneeId' in data) || (data.assigneeId is string && data.assigneeId.size() <= 100)) &&
+             (!('dueDate' in data) || data.dueDate is string) &&
+             (!('comments' in data) || data.comments is list) &&
+             (!('documents' in data) || data.documents is list);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile. Only admins can create admin roles.
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'EMPLOYEE' || isAdmin());
+                    
+      // Users can update their own profile, but cannot change their role unless they are admin.
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) &&
+                    (request.resource.data.role == resource.data.role || isAdmin());
+                    
+      allow delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      // Any authenticated user can read tasks (assuming shared workspace for the company)
+      allow read: if isAuthenticated();
+      
+      // Any authenticated user can create a task
+      allow create: if isAuthenticated() && isValidTask(request.resource.data);
+      
+      // Any authenticated user can update a task
+      allow update: if isAuthenticated() && isValidTask(request.resource.data);
+      
+      // Only admins can delete tasks
+      allow delete: if isAdmin();
+    }
+  }
+}
