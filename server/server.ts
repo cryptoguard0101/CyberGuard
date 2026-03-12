@@ -6,8 +6,6 @@ import path from 'path';
 import fs from 'fs';
 import https from 'https';
 import http from 'http';
-import tls from 'tls';
-import dns from 'dns/promises';
 import { fileURLToPath } from 'url';
 
 import selfsigned from 'selfsigned';
@@ -149,106 +147,6 @@ app.post('/api/send-email', async (req, res) => {
   } catch (error) {
     console.error('Error sending email:', error);
     res.status(500).json({ error: 'Failed to send email' });
-  }
-});
-
-// API endpoint for Domain Scanning
-app.post('/api/scan', async (req, res) => {
-  const { domain, hibpApiKey } = req.body;
-  if (!domain) {
-    return res.status(400).json({ error: 'Domain is required' });
-  }
-
-  const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-
-  try {
-    // 1. SSL Check
-    const sslResult = await new Promise((resolve) => {
-      const socket = tls.connect({
-        port: 443,
-        host: cleanDomain,
-        servername: cleanDomain,
-        rejectUnauthorized: false // We want to inspect it even if invalid
-      }, () => {
-        const cert = socket.getPeerCertificate();
-        if (!cert || Object.keys(cert).length === 0) {
-          resolve({ valid: false, issuer: 'Unknown', expiresIn: 0, issue: 'Kein Zertifikat gefunden' });
-          socket.end();
-          return;
-        }
-
-        const validTo = new Date(cert.valid_to);
-        const now = new Date();
-        const expiresIn = Math.floor((validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        const valid = socket.authorized && expiresIn > 0;
-
-        resolve({
-          valid,
-          issuer: cert.issuer?.O || cert.issuer?.CN || 'Unknown',
-          expiresIn,
-          issue: valid ? null : (expiresIn <= 0 ? 'Zertifikat abgelaufen' : 'Zertifikat ungültig (nicht vertrauenswürdig)')
-        });
-        socket.end();
-      });
-
-      socket.on('error', (err) => {
-        resolve({ valid: false, issuer: 'Unknown', expiresIn: 0, issue: `Verbindungsfehler: ${err.message}` });
-      });
-    });
-
-    // 2. DNS Checks (SPF & DMARC)
-    let hasSpf = false;
-    let hasDmarc = false;
-    try {
-      const txtRecords = await dns.resolveTxt(cleanDomain);
-      hasSpf = txtRecords.some(record => record.join('').includes('v=spf1'));
-    } catch (e) { /* ignore */ }
-
-    try {
-      const dmarcRecords = await dns.resolveTxt(`_dmarc.${cleanDomain}`);
-      hasDmarc = dmarcRecords.some(record => record.join('').includes('v=DMARC1'));
-    } catch (e) { /* ignore */ }
-
-    // 3. HIBP Check (if API key provided)
-    let leaksResult = { found: false, count: 0, issue: hibpApiKey ? 'Keine Leaks gefunden' : 'Kein API-Key hinterlegt (Übersprungen)' };
-    
-    if (hibpApiKey) {
-      try {
-        const hibpRes = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/info@${cleanDomain}`, {
-          headers: {
-            'hibp-api-key': hibpApiKey,
-            'user-agent': 'KMU-CyberGuard-App'
-          }
-        });
-        
-        if (hibpRes.status === 200) {
-          const data = await hibpRes.json();
-          leaksResult = { found: true, count: data.length, issue: `Gefunden in ${data.length} bekannten Leaks (für info@${cleanDomain})` };
-        } else if (hibpRes.status === 404) {
-          leaksResult = { found: false, count: 0, issue: null }; // No leaks found
-        } else if (hibpRes.status === 401) {
-          leaksResult = { found: false, count: 0, issue: 'Ungültiger HIBP API-Key' };
-        } else {
-          leaksResult = { found: false, count: 0, issue: `HIBP API Fehler: ${hibpRes.status}` };
-        }
-      } catch (e: any) {
-        leaksResult = { found: false, count: 0, issue: `HIBP API Fehler: ${e.message}` };
-      }
-    }
-
-    res.json({
-      domain: cleanDomain,
-      ssl: sslResult,
-      email: {
-        spf: hasSpf,
-        dmarc: hasDmarc,
-        issue: (!hasSpf || !hasDmarc) ? "DMARC oder SPF Record fehlt/fehlerhaft" : null
-      },
-      leaks: leaksResult
-    });
-
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
   }
 });
 

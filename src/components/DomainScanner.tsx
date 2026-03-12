@@ -8,7 +8,6 @@ interface DomainScannerProps {
 
 const DomainScanner: React.FC<DomainScannerProps> = ({ onAddTasks }) => {
   const [domain, setDomain] = useState('');
-  const [hibpApiKey, setHibpApiKey] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState<any | null>(null);
   const [addedTasks, setAddedTasks] = useState<string[]>([]);
@@ -20,29 +19,31 @@ const DomainScanner: React.FC<DomainScannerProps> = ({ onAddTasks }) => {
     setScanResults(null);
     setAddedTasks([]);
 
-    try {
-      const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+    // Simulate OSINT scan (in a real app, this would call a backend API that queries SSL Labs, DNS records, HIBP, etc.)
+    setTimeout(() => {
+      const isSecure = !domain.includes('bad'); // simple mock logic
+      
+      setScanResults({
+        domain: domain,
+        ssl: {
+          valid: isSecure,
+          issuer: isSecure ? "Let's Encrypt Authority X3" : "Unknown",
+          expiresIn: isSecure ? 45 : -10,
+          issue: isSecure ? null : "Zertifikat abgelaufen oder ungültig"
         },
-        body: JSON.stringify({ domain: cleanDomain, hibpApiKey })
+        email: {
+          spf: isSecure,
+          dmarc: false, // Always show an issue for demo purposes
+          issue: "DMARC Record fehlt oder ist fehlerhaft konfiguriert"
+        },
+        leaks: {
+          found: !isSecure,
+          count: isSecure ? 0 : 3,
+          issue: isSecure ? null : "Passwörter dieser Domain in bekannten Leaks gefunden (HaveIBeenPwned)"
+        }
       });
-
-      if (!res.ok) {
-        throw new Error('Scan fehlgeschlagen');
-      }
-
-      const data = await res.json();
-      setScanResults(data);
-    } catch (error) {
-      console.error("Fehler beim Scannen:", error);
-      alert("Fehler beim Scannen der Domain. Bitte versuchen Sie es später erneut.");
-    } finally {
       setIsScanning(false);
-    }
+    }, 2500);
   };
 
   const createTasksFromResults = () => {
@@ -114,7 +115,7 @@ const DomainScanner: React.FC<DomainScannerProps> = ({ onAddTasks }) => {
 
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <h2 className="text-lg font-bold text-slate-800 mb-4">Domain überprüfen</h2>
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex gap-4">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <Globe className="text-slate-400" size={20} />
@@ -128,23 +129,10 @@ const DomainScanner: React.FC<DomainScannerProps> = ({ onAddTasks }) => {
               className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Key className="text-slate-400" size={20} />
-            </div>
-            <input 
-              type="password" 
-              value={hibpApiKey}
-              onChange={(e) => setHibpApiKey(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
-              placeholder="HIBP API-Key (Optional)"
-              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-            />
-          </div>
           <button 
             onClick={handleScan}
             disabled={isScanning || !domain.trim()}
-            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
+            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-blue-200"
           >
             {isScanning ? <RefreshCcw size={20} className="animate-spin" /> : <Search size={20} />}
             Scannen
@@ -152,7 +140,7 @@ const DomainScanner: React.FC<DomainScannerProps> = ({ onAddTasks }) => {
         </div>
         <p className="text-xs text-slate-500 mt-3 flex items-center gap-1">
           <ShieldAlert size={12} />
-          Prüft SSL-Zertifikate, E-Mail-Sicherheit (SPF/DMARC) und bekannte Passwort-Leaks (mit optionalem HaveIBeenPwned API-Key).
+          Prüft SSL-Zertifikate, E-Mail-Sicherheit (SPF/DMARC) und bekannte Passwort-Leaks.
         </p>
       </div>
 

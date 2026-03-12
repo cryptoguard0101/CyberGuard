@@ -1,183 +1,185 @@
 import { Task, User, UserRole, Framework } from '../types';
 import { INITIAL_TASKS } from '../constants';
-import { db, auth } from '../firebase';
-import { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { generateKeyFromPassword } from './cryptoService';
+
+// --- SIMULATION CONFIG ---
+const SIMULATED_LATENCY = 300; // ms
+const SHARED_DATA_KEY = 'kmu-cyberguard-SHARED-DATA';
+
+interface SharedData {
+  users: User[];
+  tasks: Task[];
+}
+
+// Helper to simulate network delay
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+// Helper to get shared data from localStorage
+const getSharedData = async (): Promise<SharedData> => {
+    await delay(SIMULATED_LATENCY / 2); // Shorter delay for reads
+    const rawData = localStorage.getItem(SHARED_DATA_KEY);
+    if (rawData) {
+        return JSON.parse(rawData);
+    }
+    // Default initial state if nothing is stored
+    return { users: [], tasks: INITIAL_TASKS };
+};
+
+// Helper to save shared data to localStorage
+const saveSharedData = async (data: SharedData) => {
+    await delay(SIMULATED_LATENCY);
+    localStorage.setItem(SHARED_DATA_KEY, JSON.stringify(data));
+};
 
 // --- USER API ---
 
 export const getUsers = async (): Promise<User[]> => {
-    try {
-        const usersCol = collection(db, 'users');
-        const userSnapshot = await getDocs(usersCol);
-        return userSnapshot.docs.map(doc => doc.data() as User);
-    } catch (e) {
-        console.error("Error fetching users:", e);
-        return [];
-    }
+    const data = await getSharedData();
+    return data.users;
 };
 
 export const login = async (username: string, key: string): Promise<User | null> => {
-    // Legacy support for local login. In a real Firebase app, use Firebase Auth.
-    // We'll simulate finding the user by email/username in Firestore for now.
-    try {
-        const users = await getUsers();
-        const user = users.find(u => u.username?.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
-        
-        if (!user) {
-            if (users.length === 0) {
-                const newUser: User = {
-                    id: '1',
-                    username,
-                    email: `${username.split(' ')[0].toLowerCase()}@firma.de`,
-                    role: 'ADMIN',
-                    encryptionKey: key,
-                    lastLogin: new Date(),
-                };
-                await setDoc(doc(db, 'users', newUser.id), newUser);
-                return newUser;
-            }
-            return null;
+    const data = await getSharedData();
+    const user = data.users.find(u => u.username?.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
+
+    if (!user) {
+        // Handle first-time registration
+        if (data.users.length === 0) {
+            const newUser: User = {
+                id: '1',
+                username,
+                email: `${username.split(' ')[0].toLowerCase()}@firma.de`,
+                role: 'ADMIN',
+                encryptionKey: key, // Still store key for potential future use
+                lastLogin: new Date(),
+            };
+            data.users.push(newUser);
+            await saveSharedData(data);
+            return newUser;
         }
-        
-        await updateDoc(doc(db, 'users', user.id), { lastLogin: new Date().toISOString(), failedLoginAttempts: 0 });
-        return { ...user, lastLogin: new Date() };
-    } catch (e) {
-        console.error("Login error:", e);
-        return null;
+        return null; // User not found and it's not the first registration
     }
+
+    // In a real app, you'd verify the password/passkey against a server hash
+    // Here we assume if the user is found, login is successful for the demo
+    
+    // Update last login time
+    user.lastLogin = new Date();
+    user.failedLoginAttempts = 0;
+    await saveSharedData(data);
+
+    return user;
 };
 
 export const recordFailedLogin = async (username: string) => {
-    try {
-        const users = await getUsers();
-        const user = users.find(u => u.username?.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
-        if (user) {
-            const now = new Date();
-            let currentAttempts = user.failedLoginAttempts || 0;
-            if (user.lastFailedLogin) {
-                const lastFail = new Date(user.lastFailedLogin);
-                const hoursDiff = (now.getTime() - lastFail.getTime()) / (1000 * 60 * 60);
-                if (hoursDiff > 24) currentAttempts = 0;
-            }
-            const newAttempts = currentAttempts + 1;
-            await updateDoc(doc(db, 'users', user.id), {
-                failedLoginAttempts: newAttempts,
-                lastFailedLogin: now.toISOString(),
-                isLocked: newAttempts >= 3 ? true : user.isLocked
-            });
+    const data = await getSharedData();
+    const userIndex = data.users.findIndex(u => (u.username && u.username.toLowerCase() === username.toLowerCase()) || u.email.toLowerCase() === username.toLowerCase());
+    
+    if (userIndex > -1) {
+        const user = data.users[userIndex];
+        const now = new Date();
+        let currentAttempts = user.failedLoginAttempts || 0;
+        
+        if (user.lastFailedLogin) {
+            const lastFail = new Date(user.lastFailedLogin);
+            const hoursDiff = (now.getTime() - lastFail.getTime()) / (1000 * 60 * 60);
+            if (hoursDiff > 24) currentAttempts = 0;
         }
-    } catch (e) {
-        console.error("Failed login record error:", e);
+        
+        const newAttempts = currentAttempts + 1;
+        user.failedLoginAttempts = newAttempts;
+        user.lastFailedLogin = now;
+        if (newAttempts >= 3) {
+            user.isLocked = true;
+        }
+        
+        data.users[userIndex] = user;
+        await saveSharedData(data);
     }
 };
 
 export const addUser = async (userData: { username: string, email: string, role: UserRole, validUntil: Date | null }) => {
-    try {
-        const DEMO_SALT = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
-        const dummyKey = await generateKeyFromPassword('password', DEMO_SALT);
-        
-        const newUser: User = {
-            id: Date.now().toString(),
-            username: userData.username,
-            email: userData.email,
-            role: userData.role,
-            encryptionKey: dummyKey,
-            validUntil: userData.validUntil,
-        };
-        await setDoc(doc(db, 'users', newUser.id), newUser);
-    } catch (e) {
-        console.error("Add user error:", e);
-    }
+    const data = await getSharedData();
+    const DEMO_SALT = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    
+    // In a real app, the server would handle password hashing etc.
+    // For simulation, we create a dummy key.
+    const dummyKey = await generateKeyFromPassword('password', DEMO_SALT);
+    
+    const newUser: User = {
+        id: Date.now().toString(),
+        username: userData.username,
+        email: userData.email,
+        role: userData.role,
+        encryptionKey: dummyKey, // Now returns string
+        validUntil: userData.validUntil,
+    };
+    data.users.push(newUser);
+    await saveSharedData(data);
 };
 
 export const updateUser = async (id: string, updates: Partial<User>) => {
-    try {
-        await updateDoc(doc(db, 'users', id), updates);
-    } catch (e) {
-        console.error("Update user error:", e);
+    const data = await getSharedData();
+    const userIndex = data.users.findIndex(u => u.id === id);
+    if (userIndex > -1) {
+        data.users[userIndex] = { ...data.users[userIndex], ...updates };
+        await saveSharedData(data);
     }
 };
 
 export const deleteUser = async (id: string) => {
-    try {
-        await deleteDoc(doc(db, 'users', id));
-    } catch (e) {
-        console.error("Delete user error:", e);
-    }
+    const data = await getSharedData();
+    data.users = data.users.filter(u => u.id !== id);
+    await saveSharedData(data);
 };
 
 export const registerUser = async (user: User) => {
-    try {
-        await setDoc(doc(db, 'users', user.id), user);
-    } catch (e) {
-        console.error("Register user error:", e);
-    }
+    const data = await getSharedData();
+    data.users.push(user);
+    await saveSharedData(data);
 };
 
 // --- TASK API ---
 
 export const getTasks = async (): Promise<Task[]> => {
-    try {
-        const tasksCol = collection(db, 'tasks');
-        const taskSnapshot = await getDocs(tasksCol);
-        let tasks = taskSnapshot.docs.map(doc => doc.data() as Task);
-        
-        const hasBasicTasks = tasks.some(t => t.framework === Framework.BASIC);
-        if (!hasBasicTasks) {
-            tasks = [...INITIAL_TASKS, ...tasks];
-            await saveTasks(tasks);
-        }
-        return tasks;
-    } catch (e) {
-        console.error("Error fetching tasks:", e);
-        return INITIAL_TASKS;
+    const data = await getSharedData();
+    
+    // Ensure BASIC tasks are always present if not already there
+    const hasBasicTasks = data.tasks.some(t => t.framework === Framework.BASIC);
+    if (!hasBasicTasks) {
+        data.tasks = [...INITIAL_TASKS, ...data.tasks];
+        await saveSharedData(data);
     }
+    
+    return data.tasks;
 };
 
 export const saveTasks = async (tasks: Task[]) => {
-    try {
-        const batch = tasks.map(task => setDoc(doc(db, 'tasks', task.id), task));
-        await Promise.all(batch);
-    } catch (e) {
-        console.error("Error saving tasks:", e);
-    }
+    const data = await getSharedData();
+    data.tasks = tasks;
+    await saveSharedData(data);
 };
 
-export const updateTask = async (taskId: string, updates: Partial<Task>) => {
-    try {
-        await updateDoc(doc(db, 'tasks', taskId), updates);
-    } catch (e) {
-        console.error("Error updating task:", e);
-    }
+export const resetApp = async () => {
+    const emptyData = { users: [], tasks: [] };
+    localStorage.setItem(SHARED_DATA_KEY, JSON.stringify(emptyData));
+    await delay(500); // Simulate processing
 };
 
-export const saveTask = async (task: Task) => {
-    try {
-        await setDoc(doc(db, 'tasks', task.id), task);
-    } catch (e) {
-        console.error("Error saving task:", e);
-    }
+// --- ADMIN ENV API ---
+
+export const getEnv = async (): Promise<string> => {
+    const response = await fetch('/api/admin/env');
+    if (!response.ok) throw new Error('Failed to fetch .env');
+    const data = await response.json();
+    return data.content;
 };
 
-export const deleteTasksByFramework = async (framework: Framework) => {
-    try {
-        const tasks = await getTasks();
-        const filteredTasks = tasks.filter(t => t.framework !== framework);
-        // We need to delete the ones that match
-        const tasksToDelete = tasks.filter(t => t.framework === framework);
-        const batch = tasksToDelete.map(task => deleteDoc(doc(db, 'tasks', task.id)));
-        await Promise.all(batch);
-    } catch (e) {
-        console.error("Error deleting tasks by framework:", e);
-    }
-};
-
-export const addTasks = async (newTasks: Task[]) => {
-    try {
-        const batch = newTasks.map(task => setDoc(doc(db, 'tasks', task.id), task));
-        await Promise.all(batch);
-    } catch (e) {
-        console.error("Error adding tasks:", e);
-    }
+export const saveEnv = async (content: string): Promise<void> => {
+    const response = await fetch('/api/admin/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+    });
+    if (!response.ok) throw new Error('Failed to save .env');
 };
