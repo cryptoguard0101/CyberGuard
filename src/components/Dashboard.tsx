@@ -60,6 +60,31 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, user }) => {
     { name: 'Offen', value: stats.todo, color: COLORS.neutral },
   ].filter(d => d.value > 0);
 
+  const priorityData = useMemo(() => {
+    const high = tasks.filter(t => t.impact === 'HIGH').length;
+    const medium = tasks.filter(t => t.impact === 'MEDIUM').length;
+    const low = tasks.filter(t => t.impact === 'LOW').length;
+    
+    return [
+      { name: 'Hoch', value: high, color: '#ef4444' },
+      { name: 'Mittel', value: medium, color: '#f59e0b' },
+      { name: 'Niedrig', value: low, color: '#3b82f6' },
+    ].filter(d => d.value > 0);
+  }, [tasks]);
+
+  const nis2Score = useMemo(() => {
+    const nis2Tasks = tasks.filter(t => t.framework === Framework.NIS2);
+    if (nis2Tasks.length === 0) return 0;
+    const done = nis2Tasks.filter(t => t.status === TaskStatus.DONE).length;
+    return Math.round((done / nis2Tasks.length) * 100);
+  }, [tasks]);
+
+  // Data for the gauge chart
+  const gaugeData = [
+    { name: 'Score', value: nis2Score, color: nis2Score >= 80 ? COLORS.success : nis2Score >= 50 ? COLORS.warning : COLORS.danger },
+    { name: 'Remaining', value: 100 - nis2Score, color: '#e2e8f0' }
+  ];
+
   return (
     <div className="space-y-6">
       
@@ -231,6 +256,63 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, user }) => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* NIS2 Readiness Gauge */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center relative">
+          <h3 className="text-lg font-semibold text-slate-800 mb-2 w-full text-left">NIS2 Readiness Score</h3>
+          <div className="h-48 w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={gaugeData}
+                  cx="50%"
+                  cy="100%"
+                  startAngle={180}
+                  endAngle={0}
+                  innerRadius={80}
+                  outerRadius={110}
+                  paddingAngle={0}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {gaugeData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center justify-end pb-2">
+              <span className="text-4xl font-black text-slate-900">{nis2Score}%</span>
+              <span className="text-sm text-slate-500 font-medium">Umsetzungsgrad</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Priority Donut Chart */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Aufgaben nach Priorität</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={priorityData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {priorityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend verticalAlign="bottom" height={36} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         {/* Status Pie Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Aufgabenverteilung</h3>

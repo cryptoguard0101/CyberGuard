@@ -14,6 +14,7 @@ import Impressum from './components/Impressum';
 import Datenschutz from './components/Datenschutz';
 import EmergencyHub from './components/EmergencyHub';
 import ReportingHub from './components/ReportingHub';
+import DomainScanner from './components/DomainScanner';
 import { Task, User, UserRole, Framework } from './types';
 import * as api from './services/apiService';
 
@@ -288,6 +289,7 @@ const App: React.FC = () => {
             element={<FrameworkCatalog onAddTasks={addTasks} tasks={tasks} onRemoveModule={handleRemoveModule} />} 
           />
           <Route path="/assistant" element={<AiAssistant />} />
+          <Route path="/scanner" element={<DomainScanner onAddTasks={addTasks} />} />
           <Route path="/emergency" element={<EmergencyHub />} />
           <Route path="/reporting" element={<ReportingHub tasks={tasks} />} />
           <Route path="/help" element={<HelpSection />} />

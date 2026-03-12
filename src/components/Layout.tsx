@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, ShieldCheck, MessageSquareText, Menu, X, ShieldAlert, LogOut, Handshake, HelpCircle, Book, Cpu, Zap, Trophy, Bell, BellRing, Check, Trash2, Settings as SettingsIcon, UserCog, Power, User as UserIcon, Save, Smartphone, Mail, AlertTriangle, CheckCircle2, FileText } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, ShieldCheck, MessageSquareText, Menu, X, ShieldAlert, LogOut, Handshake, HelpCircle, Book, Cpu, Zap, Trophy, Bell, BellRing, Check, Trash2, Settings as SettingsIcon, UserCog, Power, User as UserIcon, Save, Smartphone, Mail, AlertTriangle, CheckCircle2, FileText, Globe } from 'lucide-react';
 import { User, Task, Framework } from '../types';
 import QRCode from 'qrcode';
 import * as OTPAuth from 'otpauth';
@@ -240,6 +240,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, tasks, onLogout, onUpda
     { path: '/audit', label: 'Checklisten', icon: <CheckSquare size={20} /> },
     { path: '/catalog', label: 'Bibliothek', icon: <Book size={20} /> },
     { path: '/assistant', label: 'KI-Berater', icon: <MessageSquareText size={20} /> },
+    { path: '/scanner', label: 'Domain-Scanner', icon: <Globe size={20} /> },
     { path: '/emergency', label: 'Notfall-Zentrum', icon: <AlertTriangle size={20} /> },
     { path: '/reporting', label: 'Reporting', icon: <FileText size={20} /> },
   ];
