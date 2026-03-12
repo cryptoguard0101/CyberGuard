@@ -62,6 +62,13 @@ export interface TaskDocument {
   };
 }
 
+export interface TaskComment {
+  id: string;
+  userId: string;
+  text: string;
+  timestamp: Date;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -73,6 +80,20 @@ export interface Task {
   explanation?: string;
   source?: 'DEFAULT' | 'GENERATOR' | 'ONBOARDING' | 'CATALOG' | 'UPLOAD';
   documents?: TaskDocument[];
+  
+  // Delegation & Collaboration
+  assigneeId?: string;
+  dueDate?: Date;
+  comments?: TaskComment[];
+}
+
+export interface EmergencyContact {
+  id: string;
+  role: string;
+  name: string;
+  phone: string;
+  email: string;
+  notes?: string;
 }
 
 export interface RoadmapPhase {

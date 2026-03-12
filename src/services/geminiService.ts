@@ -5,7 +5,7 @@ import { getAiConfig } from "./aiConfigService";
 import { NIS2_TASKS, ISO27001_TASKS, BSI_TASKS, GDPR_TASKS, CIS_TASKS } from "../data/frameworkTasks";
 
 // Helper to safely get AI instance
-const getGeminiInstance = () => {
+export const getGeminiInstance = () => {
     const config = getAiConfig();
     
     // Try multiple sources for the API key

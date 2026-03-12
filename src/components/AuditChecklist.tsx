@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CheckSquare, Filter, ChevronRight, Info, ShieldCheck, FileText, Upload, RefreshCcw, Sparkles, CheckCircle2, XCircle, Calendar, Clock, AlertTriangle } from 'lucide-react';
-import { Task, User, TaskStatus, Roadmap, Framework } from '../types';
+import { CheckSquare, Filter, ChevronRight, Info, ShieldCheck, FileText, Upload, RefreshCcw, Sparkles, CheckCircle2, XCircle, Calendar, Clock, AlertTriangle, UserPlus, MessageSquare, Send } from 'lucide-react';
+import { Task, User, TaskStatus, Roadmap, Framework, TaskComment } from '../types';
 import { explainTask, verifyDocumentWithAI, generateSecurityRoadmap } from '../services/geminiService';
 import Markdown from 'react-markdown';
 
 interface AuditChecklistProps {
   tasks: Task[];
   user: User;
+  users: User[];
   onUpdateTask: (task: Task) => void;
 }
 
-const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) => {
+const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, user, users, onUpdateTask }) => {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
@@ -27,6 +28,7 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'ALL'>('ALL');
   const [filterFramework, setFilterFramework] = useState<Framework | 'ALL'>('ALL');
   const [filterImpact, setFilterImpact] = useState<'HIGH' | 'MEDIUM' | 'LOW' | 'ALL'>('ALL');
+  const [newComment, setNewComment] = useState('');
 
   // Load roadmap from localStorage if it exists
   useEffect(() => {
@@ -141,6 +143,23 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleAddComment = (task: Task) => {
+    if (!newComment.trim()) return;
+    
+    const comment: TaskComment = {
+      id: `comment-${Date.now()}`,
+      userId: user.id,
+      text: newComment.trim(),
+      timestamp: new Date()
+    };
+    
+    onUpdateTask({
+      ...task,
+      comments: [...(task.comments || []), comment]
+    });
+    setNewComment('');
   };
 
   const getStatusColor = (status: TaskStatus) => {
@@ -396,6 +415,18 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                             {task.framework}
                         </span>
+                        {task.assigneeId && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">
+                            <UserPlus size={10} />
+                            {users.find(u => u.id === task.assigneeId)?.username || 'Zugewiesen'}
+                          </span>
+                        )}
+                        {task.dueDate && (
+                          <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${new Date(task.dueDate) < new Date() && task.status !== TaskStatus.DONE ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                            <Calendar size={10} />
+                            {new Date(task.dueDate).toLocaleDateString()}
+                          </span>
+                        )}
                     </div>
                     <h3 className={`text-lg font-bold transition-colors ${isExpanded ? 'text-blue-600' : 'text-slate-900'}`}>
                         {task.title}
@@ -415,6 +446,36 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
                       <div>
                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Beschreibung</h4>
                         <p className="text-slate-700 text-lg leading-relaxed">{task.description}</p>
+                      </div>
+
+                      {/* Delegation & Due Date */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <UserPlus size={14} /> Zuständigkeit
+                          </label>
+                          <select 
+                            value={task.assigneeId || ''}
+                            onChange={(e) => onUpdateTask({ ...task, assigneeId: e.target.value || undefined })}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          >
+                            <option value="">Nicht zugewiesen</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.id}>{u.username || u.email} ({u.role})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Calendar size={14} /> Fälligkeitsdatum
+                          </label>
+                          <input 
+                            type="date" 
+                            value={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''}
+                            onChange={(e) => onUpdateTask({ ...task, dueDate: e.target.value ? new Date(e.target.value) : undefined })}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
                       </div>
 
                       {/* AI Explanation */}
@@ -489,6 +550,50 @@ const AuditChecklist: React.FC<AuditChecklistProps> = ({ tasks, onUpdateTask }) 
                                 <span className="text-xs text-slate-400">PDF, PNG, JPG (max. 5MB)</span>
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Comments Section */}
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <MessageSquare size={18} className="text-blue-600" /> Kommentare & Notizen
+                        </h4>
+                        
+                        <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                          {task.comments && task.comments.length > 0 ? (
+                            task.comments.map(comment => {
+                              const commentUser = users.find(u => u.id === comment.userId);
+                              return (
+                                <div key={comment.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-bold text-slate-700">{commentUser?.username || commentUser?.email || 'Unbekannt'}</span>
+                                    <span className="text-[10px] text-slate-400">{new Date(comment.timestamp).toLocaleString()}</span>
+                                  </div>
+                                  <p className="text-sm text-slate-600">{comment.text}</p>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-sm text-slate-400 italic">Noch keine Kommentare vorhanden.</p>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddComment(task)}
+                            placeholder="Neuen Kommentar hinzufügen..."
+                            className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                          <button 
+                            onClick={() => handleAddComment(task)}
+                            disabled={!newComment.trim()}
+                            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            <Send size={18} />
+                          </button>
                         </div>
                       </div>
 

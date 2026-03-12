@@ -12,6 +12,8 @@ import DbConfigWizard from './components/DbConfigWizard';
 import AdminPage from './components/AdminPage';
 import Impressum from './components/Impressum';
 import Datenschutz from './components/Datenschutz';
+import EmergencyHub from './components/EmergencyHub';
+import ReportingHub from './components/ReportingHub';
 import { Task, User, UserRole, Framework } from './types';
 import * as api from './services/apiService';
 
@@ -279,13 +281,15 @@ const App: React.FC = () => {
           />
           <Route 
             path="/audit" 
-            element={<AuditChecklist tasks={tasks} user={user} onUpdateTask={updateTask} />} 
+            element={<AuditChecklist tasks={tasks} user={user} users={users} onUpdateTask={updateTask} />} 
           />
           <Route 
             path="/catalog" 
             element={<FrameworkCatalog onAddTasks={addTasks} tasks={tasks} onRemoveModule={handleRemoveModule} />} 
           />
           <Route path="/assistant" element={<AiAssistant />} />
+          <Route path="/emergency" element={<EmergencyHub />} />
+          <Route path="/reporting" element={<ReportingHub tasks={tasks} />} />
           <Route path="/help" element={<HelpSection />} />
           <Route path="/admin" element={user?.role === 'ADMIN' ? <AdminPage users={users} onToggleUserLock={handleToggleUserLock} onChangeUserRole={handleChangeUserRole} onCreateUser={handleCreateUser} onResetMfa={handleResetMfa} onUpdateUser={handleUpdateAnyUser} /> : <Navigate to="/" replace />} />
           <Route path="/impressum" element={<Impressum />} />
